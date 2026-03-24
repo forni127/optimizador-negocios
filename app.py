@@ -47,3 +47,30 @@ if archivo:
     )
 else:
     st.info("👋 Por favor, sube un archivo Excel en la barra lateral para comenzar.")
+    # --- EL CEREBRO DE LA IA (Consultoría Automática) ---
+st.header("💡 Recomendaciones del Consultor IA")
+
+# 1. Encontrar el Producto Estrella (Más beneficio total)
+estrella = df.sort_values('Rentabilidad', ascending=False).iloc[0]
+
+# 2. Encontrar el Producto con mejor ROI (Eficiencia del dinero)
+df['ROI_Porcentaje'] = (df['Margen'] / df['Coste_Unidad']) * 100
+mejor_roi = df.sort_values('ROI_Porcentaje', ascending=False).iloc[0]
+
+# 3. Encontrar productos con bajas ventas pero mucho margen (Oportunidades)
+oportunidad = df[(df['Margen'] > df['Margen'].median()) & (df['Ventas_Mes_Unidades'] < df['Ventas_Mes_Unidades'].median())]
+
+# MOSTRAR LOS INSIGHTS EN LA WEB
+col_a, col_b = st.columns(2)
+
+with col_a:
+    st.success(f"🌟 **Producto Estrella:** {estrella['Producto']}")
+    st.write(f"Este producto te ha generado **{estrella['Rentabilidad']:.2f}€**. Es tu motor principal, ¡asegúrate de tener siempre stock!")
+
+with col_b:
+    st.info(f"📈 **Mejor Inversión (ROI):** {mejor_roi['Producto']}")
+    st.write(f"Ganas un **{mejor_roi['ROI_Porcentaje']:.0f}%** por cada euro invertido. Es extremadamente eficiente.")
+
+if not oportunidad.empty:
+    st.warning(f"🔍 **Oportunidad Oculta:** {oportunidad.iloc[0]['Producto']}")
+    st.write("Tiene un margen muy alto pero se vende poco. ¿Has probado a hacerle más publicidad?")
