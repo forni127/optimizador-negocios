@@ -9,69 +9,96 @@ st.set_page_config(
     layout="wide"
 )
 
-# Estilo para que se vea más profesional
+# Estilo profesional
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e0e0e0; }
+    .report-card { background-color: #ffffff; padding: 20px; border-radius: 10px; border-left: 5px solid #007bff; margin-bottom: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🚀 OptiMarket Pro")
-st.subheader("Análisis Inteligente para Maximizar tus Beneficios")
+st.subheader("Sistema de Inteligencia de Negocio y Optimización de Márgenes")
 st.divider()
 
-# 2. CARGA DE DATOS EN BARRA LATERAL
+# 2. CARGA DE DATOS
 st.sidebar.header("📂 Panel de Control")
 archivo = st.sidebar.file_uploader("Sube tu Excel de ventas", type=["xlsx"])
 
 if archivo:
     df = pd.read_excel(archivo)
-    df.columns = df.columns.str.strip() # Limpiar nombres de columnas
+    df.columns = df.columns.str.strip() 
     
-    # CÁLCULOS CLAVE
-    df['Margen'] = df['Precio_Venta'] - df['Coste_Unidad']
-    df['Rentabilidad_Total'] = df['Margen'] * df['Ventas_Mes_Unidades']
-    df['ROI_Porcentaje'] = (df['Margen'] / df['Coste_Unidad']) * 100
+    # CÁLCULOS AVANZADOS
+    df['Margen_Unitario'] = df['Precio_Venta'] - df['Coste_Unidad']
+    df['Rentabilidad_Total'] = df['Margen_Unitario'] * df['Ventas_Mes_Unidades']
+    df['ROI_Porcentaje'] = (df['Margen_Unitario'] / df['Coste_Unidad']) * 100
     
-    # 3. MÉTRICAS RESUMEN (Tarjetas visuales)
+    # 3. MÉTRICAS RESUMEN
     col1, col2, col3 = st.columns(3)
     beneficio_total = df['Rentabilidad_Total'].sum()
-    mejor_prod = df.sort_values('Rentabilidad_Total', ascending=False).iloc[0]['Producto']
+    mejor_prod = df.sort_values('Rentabilidad_Total', ascending=False).iloc[0]
     roi_medio = df['ROI_Porcentaje'].mean()
     
-    col1.metric("Beneficio Total Mes", f"{beneficio_total:,.2f} €")
-    col2.metric("Producto Estrella", mejor_prod)
-    col3.metric("ROI Medio del Stock", f"{roi_medio:.1f} %")
+    col1.metric("Beneficio Neto Total", f"{beneficio_total:,.2f} €")
+    col2.metric("Líder en Ventas", mejor_prod['Producto'], f"+{mejor_prod['Rentabilidad_Total']:.0f}€")
+    col3.metric("Eficiencia Media (ROI)", f"{roi_medio:.1f} %")
 
-    # 4. GRÁFICA DE RENTABILIDAD
-    st.subheader("📊 Radiografía de tus Ganancias")
+    # 4. GRÁFICA DE ANÁLISIS
+    st.subheader("📊 Análisis de Rendimiento por Producto")
     fig = px.bar(df, x='Producto', y='Rentabilidad_Total', 
-                 color='Rentabilidad_Total', text_auto='.2s',
-                 title="Euros netos generados por cada producto")
+                 color='ROI_Porcentaje', 
+                 title="Beneficio Total (Altura) vs Rentabilidad ROI (Color)",
+                 labels={'Rentabilidad_Total': 'Euros Netos Ganados', 'ROI_Porcentaje': '% ROI'},
+                 color_continuous_scale='RdYlGn')
     st.plotly_chart(fig, use_container_width=True)
 
-    # 5. EL CEREBRO DE LA IA (Consultoría Automática)
+    # 5. EL CEREBRO DE LA IA (Consultoría Trabajada)
     st.divider()
-    st.header("💡 Recomendaciones del Consultor IA")
+    st.header("🧠 Informe Estratégico del Consultor IA")
     
+    # Lógica para detectar perfiles
     estrella = df.sort_values('Rentabilidad_Total', ascending=False).iloc[0]
-    mejor_eficiencia = df.sort_values('ROI_Porcentaje', ascending=False).iloc[0]
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        st.success(f"🌟 **Prioridad de Venta:** {estrella['Producto']}")
-        st.write(f"Es tu mayor fuente de ingresos (**{estrella['Rentabilidad_Total']:.2f}€**). No permitas que se agote el stock.")
-    with c2:
-        st.info(f"📈 **Eficiencia Máxima:** {mejor_eficiencia['Producto']}")
-        st.write(f"Este producto te da un **{mejor_eficiencia['ROI_Porcentaje']:.0f}%** de retorno. Invertir 1€ aquí es tu mejor jugada.")
+    eficiente = df.sort_values('ROI_Porcentaje', ascending=False).iloc[0]
+    bajo_rendimiento = df.sort_values('ROI_Porcentaje', ascending=True).iloc[0]
 
-    # 6. BOTÓN DE DESCARGA PARA EL CLIENTE
+    # BLOQUE 1: PRODUCTO ESTRELLA (EJEMPLO IPHONE)
+    st.markdown(f"""
+    <div class="report-card">
+        <h4>🥇 Análisis del Líder de Ingresos: <b>{estrella['Producto']}</b></h4>
+        <p>Este producto es el motor financiero de tu negocio actualmente. Ha generado <b>{estrella['Rentabilidad_Total']:.2f}€</b> de beneficio neto. 
+        Aunque su precio de venta sea alto, su volumen de ventas lo convierte en tu prioridad número 1. 
+        <b>Acción recomendada:</b> Mantener stock de seguridad y considerar campañas de 'Upselling' (vender accesorios) para este producto.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # BLOQUE 2: EFICIENCIA (EJEMPLO FUNDAS)
+    st.markdown(f"""
+    <div class="report-card" style="border-left-color: #28a745;">
+        <h4>📈 El Rey del ROI: <b>{eficiente['Producto']}</b></h4>
+        <p>¡Atención aquí! Por cada euro que inviertes en este producto, obtienes un retorno del <b>{eficiente['ROI_Porcentaje']:.0f}%</b>. 
+        Es mucho más eficiente que el resto. <b>Análisis:</b> A menudo, productos como {eficiente['Producto']} pasan desapercibidos frente a otros más caros, 
+        pero son los que realmente hacen crecer tu margen sin arriesgar mucho capital.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # BLOQUE 3: ALERTA DE OPTIMIZACIÓN
+    st.markdown(f"""
+    <div class="report-card" style="border-left-color: #dc3545;">
+        <h4>⚠️ Alerta de Optimización: <b>{bajo_rendimiento['Producto']}</b></h4>
+        <p>Este producto presenta el ROI más bajo de tu cartera (<b>{bajo_rendimiento['ROI_Porcentaje']:.1f}%</b>). 
+        Estás inmovilizando capital por un retorno muy pobre. 
+        <b>Sugerencia:</b> Revisa si puedes subir el precio de venta o si es momento de liquidar este stock para reinvertir el dinero en <b>{eficiente['Producto']}</b>.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 6. EXPORTACIÓN
     st.sidebar.download_button(
-        label="📥 Descargar Informe PDF/CSV",
+        label="📥 Descargar Análisis para el Cliente",
         data=df.to_csv(index=False).encode('utf-8'),
-        file_name='analisis_optmarket.csv',
+        file_name='informe_consultoria_optimarket.csv',
         mime='text/csv',
     )
 else:
-    st.info("👋 Bienvenido a OptiMarket. Por favor, sube tu archivo Excel en la izquierda para empezar el análisis.")
+    st.info("👋 Sube un archivo Excel para activar el Consultor Estratégico.")
