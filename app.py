@@ -106,17 +106,20 @@ else:
             c2.metric("ACTIVO ESTRELLA", estrella['Producto'])
             c3.metric("ROI PROMEDIO", f"{roi_medio:.1f} %")
 
-            # --- GRÁFICA CON COLORES DE SEMÁFORO (NUEVO) ---
+            # --- GRÁFICA CON COLORES DE SEMÁFORO Y ROI (ACTUALIZADA) ---
             st.subheader("📈 Mapa de Rentabilidad Estratégica")
-            # Definimos escala: Rojo -> Amarillo -> Verde
             fig = px.bar(
                 df, 
                 x='Producto', 
                 y='Rentabilidad_Total', 
                 color='Rentabilidad_Total',
                 color_continuous_scale=[(0, "red"), (0.5, "yellow"), (1, "green")],
-                text_auto='.2s'
+                text_auto='.2s',
+                hover_data={'ROI_Porcentaje': ':.1f'} # Muestra el ROI al pasar el ratón
             )
+            # Personalizamos el texto del tooltip para que quede profesional
+            fig.update_traces(hovertemplate='<b>%{x}</b><br>Rentabilidad: %{y:,.2f}€<br>ROI: %{customdata[0]:.1f}%')
+            
             st.plotly_chart(fig, use_container_width=True)
 
             # DIAGNÓSTICO IA
