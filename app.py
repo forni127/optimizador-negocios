@@ -67,4 +67,75 @@ else:
             pdf.cell(90, 10, f" {str(row['Producto'])[:35]}", 1)
             pdf.cell(50, 10, f" {row['Rentabilidad_Total']:,.2f}", 1)
             pdf.cell(40, 10, f" {row['ROI_Porcentaje']:.1f}%", 1, 1)
-        return pdf.output(
+        return pdf.output(dest='S').encode('latin-1', 'replace')
+
+    # --- INTERFAZ ---
+    st.title("🚀 OptiMarket Pro")
+    archivo = st.sidebar.file_uploader("📂 Cargar Datos de Ventas (Excel)", type=["xlsx"])
+
+    if archivo:
+        df = pd.read_excel(archivo)
+        
+        # DETECCIÓN INTELIGENTE DE COLUMNAS
+        for col in df.columns:
+            c_upper = col.upper()
+            if 'PRODUCTO' in c_upper or 'MODELO' in c_upper or 'ITEM' in c_upper:
+                df.rename(columns={col: 'Producto'}, inplace=True)
+            elif 'PRECIO' in c_upper and 'VENTA' in c_upper:
+                df.rename(columns={col: 'Precio_Venta'}, inplace=True)
+            elif 'COSTE' in c_upper or 'COSTO' in c_upper:
+                df.rename(columns={col: 'Coste_Unidad'}, inplace=True)
+            elif 'VENTAS' in c_upper or 'UNIDADES' in c_upper:
+                df.rename(columns={col: 'Ventas_Mes_Unidades'}, inplace=True)
+
+        cols_necesarias = ['Producto', 'Precio_Venta', 'Coste_Unidad', 'Ventas_Mes_Unidades']
+        if all(c in df.columns for c in cols_necesarias):
+            df['Margen'] = df['Precio_Venta'] - df['Coste_Unidad']
+            df['Rentabilidad_Total'] = df['Margen'] * df['Ventas_Mes_Unidades']
+            df['ROI_Porcentaje'] = (df['Margen'] / df['Coste_Unidad']) * 100
+            
+            total_neto = df['Rentabilidad_Total'].sum()
+            roi_medio = df['ROI_Porcentaje'].mean()
+            estrella = df.sort_values('Rentabilidad_Total', ascending=False).iloc[0]
+            eficiente = df.sort_values('ROI_Porcentaje', ascending=False).iloc[0]
+            bajo = df.sort_values('ROI_Porcentaje', ascending=True).iloc[0]
+
+            # KPIs
+            c1, c2, c3 = st.columns(3)
+            c1.metric("BENEFICIO NETO TOTAL", f"{total_neto:,.2f} €")
+            c2.metric("ACTIVO ESTRELLA", estrella['Producto'])
+            c3.metric("ROI PROMEDIO", f"{roi_medio:.1f} %")
+
+            # --- GRÁFICA CON COLORES DE SEMÁFORO (NUEVO) ---
+            st.subheader("📈 Mapa de Rentabilidad Estratégica")
+            # Definimos escala: Rojo -> Amarillo -> Verde
+            fig = px.bar(
+                df, 
+                x='Producto', 
+                y='Rentabilidad_Total', 
+                color='Rentabilidad_Total',
+                color_continuous_scale=[(0, "red"), (0.5, "yellow"), (1, "green")],
+                text_auto='.2s'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            # DIAGNÓSTICO IA
+            st.divider()
+            st.header("🧠 Diagnóstico de Consultoría IA")
+            col_l, col_r = st.columns(2)
+            with col_l:
+                st.markdown(f"""<div class="report-card"><h4>🥇 Liderazgo de Mercado: {estrella['Producto']}</h4><p>Este activo es tu principal generador de liquidez. Aporta una parte crítica al beneficio total.<br><br><b>Estrategia:</b> No compitas por precio; compite por servicio.</p></div>""", unsafe_allow_html=True)
+            with col_r:
+                st.markdown(f"""<div class="report-card" style="border-left-color: #28a745;"><h4>📈 Optimización de Capital: {eficiente['Producto']}</h4><p>Presenta una eficiencia del {eficiente['ROI_Porcentaje']:.0f}%. Es un multiplicador de dinero.<br><br><b>Estrategia:</b> Escalar las ventas de este ítem.</p></div>""", unsafe_allow_html=True)
+
+            st.markdown(f"""<div class="report-card" style="border-left-color: #d9534f;"><h4>⚠️ Alerta de Rendimiento: {bajo['Producto']}</h4><p>Este ítem está <b>secuestrando capital</b> con el ROI más bajo ({bajo['ROI_Porcentaje']:.1f}%).<br><br><b>Estrategia:</b> Evalúa una subida de precio o liquidación.</p></div>""", unsafe_allow_html=True)
+
+            # EXPORTACIÓN
+            st.sidebar.divider()
+            pdf_bytes = generar_pdf_pro(df, estrella, eficiente, bajo, total_neto, roi_medio)
+            st.sidebar.download_button("📄 Descargar Informe PDF", data=pdf_bytes, file_name="Informe.pdf")
+            st.sidebar.download_button("📊 Exportar CSV", data=df.to_csv(index=False).encode('utf-8'), file_name="datos.csv")
+        else:
+            st.error("⚠️ Columnas no detectadas.")
+    else:
+        st.info("👋 Bienvenida/o a OptiMarket Pro. Por favor, cargue su archivo de ventas en el panel lateral para iniciar el diagnóstico de inteligencia de negocio.")
