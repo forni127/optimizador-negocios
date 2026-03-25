@@ -88,5 +88,4 @@ else:
         st.sidebar.download_button("📄 Descargar Informe PDF", data=pdf_bytes, file_name="Informe.pdf")
         st.sidebar.download_button("📊 Exportar CSV", data=df.to_csv(index=False).encode('utf-8'), file_name="datos.csv")
     else:
-        st.info("👋 Bienvenida/o. Por favor, cargue su archivo Excel en el panel lateral.")
-    # --- FIN DE TU CÓDIGO ---
+        st.info("👋 Bienvenida/o a OptiMarket Pro. Por favor, cargue su archivo de ventas en el panel lateral para iniciar el diagnóstico de inteligencia de negocio.")
