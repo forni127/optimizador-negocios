@@ -34,7 +34,7 @@ else:
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", 'B', 22)
-        pdf.set_text_color(0, 71, 171)
+        pdf.set_text_color(0, 71, 171) 
         pdf.cell(200, 15, "OPTIMARKET PRO", ln=True, align='C')
         pdf.ln(10)
         pdf.set_font("Arial", 'B', 14)
@@ -75,7 +75,7 @@ else:
 
     if archivo:
         df = pd.read_excel(archivo)
-       
+        
         # DETECCIÓN INTELIGENTE DE COLUMNAS
         for col in df.columns:
             c_upper = col.upper()
@@ -93,7 +93,7 @@ else:
             df['Margen'] = df['Precio_Venta'] - df['Coste_Unidad']
             df['Rentabilidad_Total'] = df['Margen'] * df['Ventas_Mes_Unidades']
             df['ROI_Porcentaje'] = (df['Margen'] / df['Coste_Unidad']) * 100
-           
+            
             total_neto = df['Rentabilidad_Total'].sum()
             roi_medio = df['ROI_Porcentaje'].mean()
             estrella = df.sort_values('Rentabilidad_Total', ascending=False).iloc[0]
@@ -106,17 +106,20 @@ else:
             c2.metric("ACTIVO ESTRELLA", estrella['Producto'])
             c3.metric("ROI PROMEDIO", f"{roi_medio:.1f} %")
 
-            # --- GRÁFICA CON COLORES DE SEMÁFORO (NUEVO) ---
+            # --- GRÁFICA CON COLORES DE SEMÁFORO Y ROI (ACTUALIZADA) ---
             st.subheader("📈 Mapa de Rentabilidad Estratégica")
-            # Definimos escala: Rojo -> Amarillo -> Verde
             fig = px.bar(
-                df,
-                x='Producto',
-                y='Rentabilidad_Total',
+                df, 
+                x='Producto', 
+                y='Rentabilidad_Total', 
                 color='Rentabilidad_Total',
                 color_continuous_scale=[(0, "red"), (0.5, "yellow"), (1, "green")],
-                text_auto='.2s'
+                text_auto='.2s',
+                hover_data={'ROI_Porcentaje': ':.1f'} # Muestra el ROI al pasar el ratón
             )
+            # Personalizamos el texto del tooltip para que quede profesional
+            fig.update_traces(hovertemplate='<b>%{x}</b><br>Rentabilidad: %{y:,.2f}€<br>ROI: %{customdata[0]:.1f}%')
+            
             st.plotly_chart(fig, use_container_width=True)
 
             # DIAGNÓSTICO IA
