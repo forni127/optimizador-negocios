@@ -29,44 +29,81 @@ else:
         </style>
         """, unsafe_allow_html=True)
 
-    # --- FUNCIÓN PDF POTENCIADA ---
+    # --- FUNCIÓN PDF ULTRA PROFESIONAL (POTENCIADA) ---
     def generar_pdf_pro(df, estrella, eficiente, bajo, total, roi_medio):
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_font("Arial", 'B', 22)
-        pdf.set_text_color(0, 71, 171) 
+        
+        # Encabezado de Marca
+        pdf.set_font("Arial", 'B', 24)
+        pdf.set_text_color(0, 71, 171) # Azul Corporativo
         pdf.cell(200, 15, "OPTIMARKET PRO", ln=True, align='C')
+        
+        pdf.set_font("Arial", 'I', 10)
+        pdf.set_text_color(100, 100, 100)
+        fecha = datetime.datetime.now().strftime("%d/%m/%Y")
+        pdf.cell(200, 10, f"Informe Estrategico de Rendimiento - Generado el {fecha}", ln=True, align='C')
         pdf.ln(10)
+        
+        # 1. RESUMEN EJECUTIVO
         pdf.set_font("Arial", 'B', 14)
         pdf.set_text_color(0, 0, 0)
-        pdf.cell(0, 12, "1. RESUMEN EJECUTIVO", ln=True)
+        pdf.set_fill_color(240, 240, 240)
+        pdf.cell(0, 10, " 1. RESUMEN EJECUTIVO", ln=True, fill=True)
+        pdf.ln(3)
+        
         pdf.set_font("Arial", '', 12)
-        resumen = (f"Durante el periodo analizado, el negocio ha generado un beneficio neto total de {total:,.2f} EUR, "
-                   f"con un retorno de inversion (ROI) promedio del {roi_medio:.1f}% sobre el inventario movilizado.")
-        pdf.multi_cell(0, 8, resumen)
+        resumen = (f"Tras el analisis de los datos facilitados, el volumen de negocio ha generado un "
+                   f"beneficio neto total de {total:,.2f} EUR. La eficiencia global de la cartera "
+                   f"presenta un ROI promedio del {roi_medio:.1f}%, lo que indica una saludable "
+                   f"capacidad de retorno sobre el capital invertido.")
+        pdf.multi_cell(0, 7, resumen)
         pdf.ln(10)
+        
+        # 2. ANÁLISIS ESTRATÉGICO (INSIGHTS)
         pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 12, "2. ANALISIS ESTRATEGICO (INSIGHTS)", ln=True)
+        pdf.cell(0, 10, " 2. ANALISIS ESTRATEGICO (INSIGHTS)", ln=True, fill=True)
         pdf.ln(5)
+        
+        # Líder de Ingresos
         pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 10, f"> LIDER DE INGRESOS: {estrella['Producto']}", ln=True)
+        pdf.set_text_color(0, 71, 171)
+        pdf.cell(0, 8, f"> LIDER DE INGRESOS: {estrella['Producto']}", ln=True)
         pdf.set_font("Arial", '', 11)
-        pdf.multi_cell(0, 8, f"Este activo representa el mayor flujo de caja ({estrella['Rentabilidad_Total']:,.2f} EUR).")
-        pdf.ln(5)
+        pdf.set_text_color(0, 0, 0)
+        pdf.multi_cell(0, 6, f"Este producto es el motor financiero de la operacion, aportando {estrella['Rentabilidad_Total']:,.2f} EUR. Su mantenimiento es critico para la estabilidad del flujo de caja.")
+        pdf.ln(4)
+        
+        # Máxima Eficiencia
         pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 10, f"> MAXIMA EFICIENCIA: {eficiente['Producto']}", ln=True)
+        pdf.set_text_color(40, 167, 69) # Verde
+        pdf.cell(0, 8, f"> MAXIMA EFICIENCIA DE CAPITAL: {eficiente['Producto']}", ln=True)
         pdf.set_font("Arial", '', 11)
-        pdf.multi_cell(0, 8, f"Con un ROI del {eficiente['ROI_Porcentaje']:.1f}%, es el mejor multiplicador de capital.")
+        pdf.set_text_color(0, 0, 0)
+        pdf.multi_cell(0, 6, f"Con un ROI extraordinario del {eficiente['ROI_Porcentaje']:.1f}%, este item es el mas eficiente. Se recomienda aumentar su exposicion para maximizar el margen neto.")
         pdf.ln(10)
+
+        # 3. DESGLOSE TÉCNICO
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, " 3. DESGLOSE TECNICO POR PRODUCTO", ln=True, fill=True)
+        pdf.ln(5)
+        
+        # Cabecera de Tabla
         pdf.set_font("Arial", 'B', 11)
-        pdf.cell(90, 10, " Item", 1)
-        pdf.cell(50, 10, " Beneficio (EUR)", 1)
-        pdf.cell(40, 10, " ROI %", 1, 1)
+        pdf.set_fill_color(0, 71, 171)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(90, 10, " Producto / Item", 1, 0, 'L', True)
+        pdf.cell(50, 10, " Beneficio (EUR)", 1, 0, 'C', True)
+        pdf.cell(40, 10, " ROI %", 1, 1, 'C', True)
+        
+        # Filas de la Tabla
         pdf.set_font("Arial", '', 10)
+        pdf.set_text_color(0, 0, 0)
         for i, row in df.iterrows():
             pdf.cell(90, 10, f" {str(row['Producto'])[:35]}", 1)
-            pdf.cell(50, 10, f" {row['Rentabilidad_Total']:,.2f}", 1)
-            pdf.cell(40, 10, f" {row['ROI_Porcentaje']:.1f}%", 1, 1)
+            pdf.cell(50, 10, f" {row['Rentabilidad_Total']:,.2f}", 1, 0, 'C')
+            pdf.cell(40, 10, f" {row['ROI_Porcentaje']:.1f}%", 1, 1, 'C')
+            
         return pdf.output(dest='S').encode('latin-1', 'replace')
 
     # --- INTERFAZ ---
@@ -106,39 +143,11 @@ else:
             c2.metric("ACTIVO ESTRELLA", estrella['Producto'])
             c3.metric("ROI PROMEDIO", f"{roi_medio:.1f} %")
 
-            # --- GRÁFICA CON COLORES DE SEMÁFORO Y ROI (ACTUALIZADA) ---
+            # --- GRÁFICA CON ROI EN TOOLTIP ---
             st.subheader("📈 Mapa de Rentabilidad Estratégica")
             fig = px.bar(
                 df, 
                 x='Producto', 
                 y='Rentabilidad_Total', 
                 color='Rentabilidad_Total',
-                color_continuous_scale=[(0, "red"), (0.5, "yellow"), (1, "green")],
-                text_auto='.2s',
-                hover_data={'ROI_Porcentaje': ':.1f'} # Muestra el ROI al pasar el ratón
-            )
-            # Personalizamos el texto del tooltip para que quede profesional
-            fig.update_traces(hovertemplate='<b>%{x}</b><br>Rentabilidad: %{y:,.2f}€<br>ROI: %{customdata[0]:.1f}%')
-            
-            st.plotly_chart(fig, use_container_width=True)
-
-            # DIAGNÓSTICO IA
-            st.divider()
-            st.header("🧠 Diagnóstico de Consultoría IA")
-            col_l, col_r = st.columns(2)
-            with col_l:
-                st.markdown(f"""<div class="report-card"><h4>🥇 Liderazgo de Mercado: {estrella['Producto']}</h4><p>Este activo es tu principal generador de liquidez. Aporta una parte crítica al beneficio total.<br><br><b>Estrategia:</b> No compitas por precio; compite por servicio.</p></div>""", unsafe_allow_html=True)
-            with col_r:
-                st.markdown(f"""<div class="report-card" style="border-left-color: #28a745;"><h4>📈 Optimización de Capital: {eficiente['Producto']}</h4><p>Presenta una eficiencia del {eficiente['ROI_Porcentaje']:.0f}%. Es un multiplicador de dinero.<br><br><b>Estrategia:</b> Escalar las ventas de este ítem.</p></div>""", unsafe_allow_html=True)
-
-            st.markdown(f"""<div class="report-card" style="border-left-color: #d9534f;"><h4>⚠️ Alerta de Rendimiento: {bajo['Producto']}</h4><p>Este ítem está <b>secuestrando capital</b> con el ROI más bajo ({bajo['ROI_Porcentaje']:.1f}%).<br><br><b>Estrategia:</b> Evalúa una subida de precio o liquidación.</p></div>""", unsafe_allow_html=True)
-
-            # EXPORTACIÓN
-            st.sidebar.divider()
-            pdf_bytes = generar_pdf_pro(df, estrella, eficiente, bajo, total_neto, roi_medio)
-            st.sidebar.download_button("📄 Descargar Informe PDF", data=pdf_bytes, file_name="Informe.pdf")
-            st.sidebar.download_button("📊 Exportar CSV", data=df.to_csv(index=False).encode('utf-8'), file_name="datos.csv")
-        else:
-            st.error("⚠️ Columnas no detectadas.")
-    else:
-        st.info("👋 Bienvenida/o a OptiMarket Pro. Por favor, cargue su archivo de ventas en el panel lateral para iniciar el diagnóstico de inteligencia de negocio.")
+                color_continuous_scale=[(0
