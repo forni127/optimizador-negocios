@@ -29,68 +29,61 @@ else:
         </style>
         """, unsafe_allow_html=True)
 
-    # --- FUNCIÓN PDF ULTRA PROFESIONAL ---
+    # --- FUNCIÓN PDF POTENCIADA AL MÁXIMO ---
     def generar_pdf_pro(df, estrella, eficiente, bajo, total, roi_medio):
         pdf = FPDF()
         pdf.add_page()
         
-        # Encabezado de Marca
-        pdf.set_font("Arial", 'B', 24)
-        pdf.set_text_color(0, 71, 171) 
-        pdf.cell(200, 15, "OPTIMARKET PRO", ln=True, align='C')
-        
+        # Encabezado con Estilo Corporativo
+        pdf.set_fill_color(0, 71, 171) # Azul Oscuro
+        pdf.rect(0, 0, 210, 40, 'F')
+        pdf.set_font("Arial", 'B', 26)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(190, 25, "OPTIMARKET PRO", ln=True, align='C')
         pdf.set_font("Arial", 'I', 10)
-        pdf.set_text_color(100, 100, 100)
-        fecha = datetime.datetime.now().strftime("%d/%m/%Y")
-        pdf.cell(200, 10, f"Informe Estrategico de Rendimiento - Generado el {fecha}", ln=True, align='C')
-        pdf.ln(10)
-        
-        # 1. RESUMEN EJECUTIVO
-        pdf.set_font("Arial", 'B', 14)
-        pdf.set_text_color(0, 0, 0)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.cell(0, 10, " 1. RESUMEN EJECUTIVO", ln=True, fill=True)
-        pdf.ln(3)
-        
-        pdf.set_font("Arial", '', 12)
-        resumen = (f"Tras el analisis de los datos facilitados, el volumen de negocio ha generado un "
-                   f"beneficio neto total de {total:,.2f} EUR. La eficiencia global de la cartera "
-                   f"presenta un ROI promedio del {roi_medio:.1f}%.")
-        pdf.multi_cell(0, 7, resumen)
-        pdf.ln(10)
-        
-        # 2. ANÁLISIS ESTRATÉGICO
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, " 2. ANALISIS ESTRATEGICO (INSIGHTS)", ln=True, fill=True)
+        pdf.cell(190, 0, f"Informe Estrategico de Inteligencia de Negocio - {datetime.datetime.now().strftime('%d/%m/%Y')}", ln=True, align='C')
+        pdf.ln(25)
+
+        # 1. RESUMEN EJECUTIVO (Caja Destacada)
+        pdf.set_font("Arial", 'B', 16)
+        pdf.set_text_color(0, 71, 171)
+        pdf.cell(0, 10, "1. RESUMEN EJECUTIVO", ln=True)
+        pdf.set_draw_color(0, 71, 171)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(5)
         
-        pdf.set_font("Arial", 'B', 12)
-        pdf.set_text_color(0, 71, 171)
-        pdf.cell(0, 8, f"> LIDER DE INGRESOS: {estrella['Producto']}", ln=True)
-        pdf.set_font("Arial", '', 11)
-        pdf.set_text_color(0, 0, 0)
-        pdf.multi_cell(0, 6, f"Este producto es el motor financiero, aportando {estrella['Rentabilidad_Total']:,.2f} EUR.")
-        pdf.ln(4)
-        
-        pdf.set_font("Arial", 'B', 12)
-        pdf.set_text_color(40, 167, 69) 
-        pdf.cell(0, 8, f"> MAXIMA EFICIENCIA: {eficiente['Producto']}", ln=True)
-        pdf.set_font("Arial", '', 11)
-        pdf.set_text_color(0, 0, 0)
-        pdf.multi_cell(0, 6, f"Con un ROI del {eficiente['ROI_Porcentaje']:.1f}%, es el item mas rentable.")
+        pdf.set_font("Arial", '', 12)
+        pdf.set_text_color(30, 30, 30)
+        resumen = (f"El analisis de rendimiento concluye que el negocio ha generado un Beneficio Neto Total de {total:,.2f} EUR. "
+                   f"La cartera de productos analizada opera con una eficiencia media (ROI) del {roi_medio:.1f}%.")
+        pdf.multi_cell(0, 8, resumen)
         pdf.ln(10)
 
-        # 3. TABLA TÉCNICA
-        pdf.set_font("Arial", 'B', 11)
-        pdf.set_fill_color(0, 71, 171)
-        pdf.set_text_color(255, 255, 255)
-        pdf.cell(90, 10, " Producto", 1, 0, 'L', True)
-        pdf.cell(50, 10, " Beneficio (EUR)", 1, 0, 'C', True)
-        pdf.cell(40, 10, " ROI %", 1, 1, 'C', True)
-        
-        pdf.set_font("Arial", '', 10)
-        pdf.set_text_color(0, 0, 0)
-        for _, row in df.iterrows():
-            pdf.cell(90, 10, f" {str(row['Producto'])[:35]}", 1)
-            pdf.cell(50, 10, f" {row['Rentabilidad_Total']:,.2f}", 1, 0, 'C')
-            pdf.cell(40, 10, f" {row['ROI_Porcentaje']:.1f}%", 1, 1, 'C
+        # 2. INSIGHTS ESTRATÉGICOS
+        pdf.set_font("Arial", 'B', 16)
+        pdf.set_text_color(0, 71, 171)
+        pdf.cell(0, 10, "2. ANALISIS ESTRATEGICO (INSIGHTS)", ln=True)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(5)
+
+        # Card: Liderazgo
+        pdf.set_fill_color(240, 245, 255)
+        pdf.rect(10, pdf.get_y(), 190, 25, 'F')
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_text_color(0, 71, 171)
+        pdf.cell(0, 10, f"  > LIDER DE INGRESOS: {estrella['Producto']}", ln=True)
+        pdf.set_font("Arial", '', 11)
+        pdf.set_text_color(50, 50, 50)
+        pdf.cell(0, 5, f"    Genera el mayor flujo de caja con {estrella['Rentabilidad_Total']:,.2f} EUR netos.", ln=True)
+        pdf.ln(10)
+
+        # Card: Eficiencia
+        pdf.set_fill_color(240, 255, 240)
+        pdf.rect(10, pdf.get_y(), 190, 25, 'F')
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_text_color(40, 167, 69)
+        pdf.cell(0, 10, f"  > MAXIMA EFICIENCIA: {eficiente['Producto']}", ln=True)
+        pdf.set_font("Arial", '', 11)
+        pdf.set_text_color(50, 50, 50)
+        pdf.cell(0, 5, f"    Multiplicador de capital critico con un ROI del {eficiente['ROI_Porcentaje']:.1f}%.", ln=True)
+        pdf.ln(15)
