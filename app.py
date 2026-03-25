@@ -6,35 +6,19 @@ import datetime
 # 1. CONFIGURACIÓN DE PÁGINA (Siempre la primera línea de Streamlit)
 
 st.set_page_config(page_title="OptiMarket Pro | Intelligence", page_icon="🚀", layout="wide")
-
-
-
 # --- BLOQUE DE CONTRASEÑA (Añadido sin tocar el resto) ---
-
 def check_password():
-
     if "password_correct" not in st.session_state:
-
         st.title("🔐 Acceso Privado OptiMarket")
-
         user_pass = st.text_input("Introduce la clave de consultor para acceder:", type="password")
-
         if st.button("Desbloquear Sistema"):
-
             if user_pass == "SOCIO2026":
-
                 st.session_state["password_correct"] = True
-
                 st.rerun()
-
             else:
-
                 st.error("❌ Clave incorrecta.")
-
         return False
-
     return True
-
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="OptiMarket Pro | Intelligence", page_icon="🚀", layout="wide")
 
