@@ -106,36 +106,12 @@ else:
             c2.metric("ACTIVO ESTRELLA", estrella['Producto'])
             c3.metric("ROI PROMEDIO", f"{roi_medio:.1f} %")
 
-            # --- GRÁFICA CON COLORES DE SEMÁFORO (NUEVO) ---
+            # --- GRÁFICA ACTUALIZADA CON ROI EN TOOLTIP ---
             st.subheader("📈 Mapa de Rentabilidad Estratégica")
-            # Definimos escala: Rojo -> Amarillo -> Verde
             fig = px.bar(
                 df, 
                 x='Producto', 
                 y='Rentabilidad_Total', 
                 color='Rentabilidad_Total',
                 color_continuous_scale=[(0, "red"), (0.5, "yellow"), (1, "green")],
-                text_auto='.2s'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-            # DIAGNÓSTICO IA
-            st.divider()
-            st.header("🧠 Diagnóstico de Consultoría IA")
-            col_l, col_r = st.columns(2)
-            with col_l:
-                st.markdown(f"""<div class="report-card"><h4>🥇 Liderazgo de Mercado: {estrella['Producto']}</h4><p>Este activo es tu principal generador de liquidez. Aporta una parte crítica al beneficio total.<br><br><b>Estrategia:</b> No compitas por precio; compite por servicio.</p></div>""", unsafe_allow_html=True)
-            with col_r:
-                st.markdown(f"""<div class="report-card" style="border-left-color: #28a745;"><h4>📈 Optimización de Capital: {eficiente['Producto']}</h4><p>Presenta una eficiencia del {eficiente['ROI_Porcentaje']:.0f}%. Es un multiplicador de dinero.<br><br><b>Estrategia:</b> Escalar las ventas de este ítem.</p></div>""", unsafe_allow_html=True)
-
-            st.markdown(f"""<div class="report-card" style="border-left-color: #d9534f;"><h4>⚠️ Alerta de Rendimiento: {bajo['Producto']}</h4><p>Este ítem está <b>secuestrando capital</b> con el ROI más bajo ({bajo['ROI_Porcentaje']:.1f}%).<br><br><b>Estrategia:</b> Evalúa una subida de precio o liquidación.</p></div>""", unsafe_allow_html=True)
-
-            # EXPORTACIÓN
-            st.sidebar.divider()
-            pdf_bytes = generar_pdf_pro(df, estrella, eficiente, bajo, total_neto, roi_medio)
-            st.sidebar.download_button("📄 Descargar Informe PDF", data=pdf_bytes, file_name="Informe.pdf")
-            st.sidebar.download_button("📊 Exportar CSV", data=df.to_csv(index=False).encode('utf-8'), file_name="datos.csv")
-        else:
-            st.error("⚠️ Columnas no detectadas.")
-    else:
-        st.info("👋 Bienvenida/o. Por favor, cargue su archivo Excel en el panel lateral.")
+                text_auto='.2s',
