@@ -48,7 +48,6 @@ else:
         pdf.set_font("Arial", 'B', 14)
         pdf.cell(0, 12, "2. ANALISIS ESTRATEGICO (INSIGHTS)", ln=True)
         pdf.ln(5)
-        # Insights
         pdf.set_font("Arial", 'B', 12)
         pdf.cell(0, 10, f"> LIDER DE INGRESOS: {estrella['Producto']}", ln=True)
         pdf.set_font("Arial", '', 11)
@@ -59,7 +58,6 @@ else:
         pdf.set_font("Arial", '', 11)
         pdf.multi_cell(0, 8, f"Con un ROI del {eficiente['ROI_Porcentaje']:.1f}%, es el mejor multiplicador de capital.")
         pdf.ln(10)
-        # Tabla técnica
         pdf.set_font("Arial", 'B', 11)
         pdf.cell(90, 10, " Item", 1)
         pdf.cell(50, 10, " Beneficio (EUR)", 1)
@@ -78,8 +76,7 @@ else:
     if archivo:
         df = pd.read_excel(archivo)
         
-        # --- NUEVA LÓGICA DE DETECCIÓN INTELIGENTE ---
-        # Mapeamos las columnas buscando palabras clave sin importar el resto del nombre
+        # DETECCIÓN INTELIGENTE DE COLUMNAS
         for col in df.columns:
             c_upper = col.upper()
             if 'PRODUCTO' in c_upper or 'MODELO' in c_upper or 'ITEM' in c_upper:
@@ -91,7 +88,6 @@ else:
             elif 'VENTAS' in c_upper or 'UNIDADES' in c_upper:
                 df.rename(columns={col: 'Ventas_Mes_Unidades'}, inplace=True)
 
-        # Verificación final para evitar el error KeyError de tu captura
         cols_necesarias = ['Producto', 'Precio_Venta', 'Coste_Unidad', 'Ventas_Mes_Unidades']
         if all(c in df.columns for c in cols_necesarias):
             df['Margen'] = df['Precio_Venta'] - df['Coste_Unidad']
@@ -110,11 +106,20 @@ else:
             c2.metric("ACTIVO ESTRELLA", estrella['Producto'])
             c3.metric("ROI PROMEDIO", f"{roi_medio:.1f} %")
 
-            # Gráfica
-            fig = px.bar(df, x='Producto', y='Rentabilidad_Total', color='ROI_Porcentaje', color_continuous_scale='Geyser')
+            # --- GRÁFICA CON COLORES DE SEMÁFORO (NUEVO) ---
+            st.subheader("📈 Mapa de Rentabilidad Estratégica")
+            # Definimos escala: Rojo -> Amarillo -> Verde
+            fig = px.bar(
+                df, 
+                x='Producto', 
+                y='Rentabilidad_Total', 
+                color='Rentabilidad_Total',
+                color_continuous_scale=[(0, "red"), (0.5, "yellow"), (1, "green")],
+                text_auto='.2s'
+            )
             st.plotly_chart(fig, use_container_width=True)
 
-            # DIAGNÓSTICO IA (Tus textos intactos)
+            # DIAGNÓSTICO IA
             st.divider()
             st.header("🧠 Diagnóstico de Consultoría IA")
             col_l, col_r = st.columns(2)
@@ -131,6 +136,6 @@ else:
             st.sidebar.download_button("📄 Descargar Informe PDF", data=pdf_bytes, file_name="Informe.pdf")
             st.sidebar.download_button("📊 Exportar CSV", data=df.to_csv(index=False).encode('utf-8'), file_name="datos.csv")
         else:
-            st.error("⚠️ No se han detectado las columnas correctas. Asegúrate de que el Excel tenga: Producto, Precio Venta, Coste y Ventas.")
+            st.error("⚠️ Columnas no detectadas.")
     else:
         st.info("👋 Bienvenida/o. Por favor, cargue su archivo Excel en el panel lateral.")
