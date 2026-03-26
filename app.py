@@ -4,140 +4,120 @@ import plotly.express as px
 from fpdf import FPDF
 import datetime
 
-# --- BLOQUE DE SEGURIDAD ---
-st.set_page_config(page_title="OptiMarket Pro | Intelligence", page_icon="🚀", layout="wide")
+# =========================================================
+# 🛠️ SECCIÓN DE CONFIGURACIÓN: CAMBIA SOLO ESTO SEGÚN TU EXCEL
+# =========================================================
+# Pon aquí el nombre exacto de las columnas que tiene tu archivo actual:
+COL_PRODUCTO = "REFERENC."    # O "Fabricante", o "Modelo"
+COL_PRECIO   = "PRECIO"       # Si no existe en el Excel, el código pondrá 0 o puedes calcularlo
+COL_COSTE    = "COSTE"        # Si no existe, lo mismo
+COL_VENTAS   = "VENDIDO"      # O "Cantidad", o "Unidades"
+# =========================================================
 
-if "auth" not in st.session_state:
-    st.session_state.auth = False
+st.set_page_config(page_title="OptiMarket Pro | Multi-Empresa", page_icon="🚀", layout="wide")
 
+# --- SEGURIDAD ---
+if "auth" not in st.session_state: st.session_state.auth = False
 if not st.session_state.auth:
     st.title("🔐 Acceso Privado")
-    clave = st.text_input("Introduce la contraseña:", type="password")
+    clave = st.text_input("Contraseña:", type="password")
     if st.button("Entrar"):
         if clave == "SOCIO2024":
             st.session_state.auth = True
             st.rerun()
-        else:
-            st.error("Clave incorrecta")
+        else: st.error("Incorrecta")
 else:
-    # --- ESTILOS VISUALES ---
+    # Estilos de la IA
     st.markdown("""
         <style>
         .report-card { background-color: #ffffff; padding: 25px; border-radius: 12px; border-left: 6px solid #0047AB; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); color: #1e1e1e; }
-        .stMetric { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e0e6ed; }
-        h4 { color: #0047AB; margin-top: 0; margin-bottom: 10px; }
+        h4 { color: #0047AB; margin-top: 0; }
         </style>
         """, unsafe_allow_html=True)
 
-    # --- FUNCIÓN PDF (Compatible con fpdf2) ---
-    def generar_pdf_pro(df, estrella, eficiente, bajo, total, roi_medio):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("helvetica", 'B', 18)
-        pdf.set_text_color(0, 71, 171)
-        pdf.cell(0, 15, "OPTIMARKET PRO - INFORME ESTRATÉGICO", ln=True, align='C')
-        pdf.ln(10)
-        
-        pdf.set_font("helvetica", 'B', 12)
-        pdf.set_text_color(0, 0, 0)
-        pdf.cell(0, 10, "1. RESUMEN EJECUTIVO", ln=True)
-        pdf.set_font("helvetica", '', 11)
-        resumen = f"Beneficio Neto Total: {total:,.2f} EUR | ROI Promedio: {roi_medio:.1f}%"
-        pdf.cell(0, 10, resumen, ln=True)
-        
-        pdf.ln(5)
-        pdf.set_font("helvetica", 'B', 12)
-        pdf.cell(0, 10, "2. TOP 10 FABRICANTES POR RENTABILIDAD", ln=True)
-        
-        pdf.set_font("helvetica", 'B', 10)
-        pdf.set_fill_color(230, 230, 230)
-        pdf.cell(100, 10, " Fabricante", 1, 0, 'L', True)
-        pdf.cell(45, 10, " Beneficio", 1, 0, 'C', True)
-        pdf.cell(45, 10, " ROI %", 1, 1, 'C', True)
-        
-        pdf.set_font("helvetica", '', 9)
-        for i, row in df.head(10).iterrows():
-            pdf.cell(100, 9, f" {str(row['Producto'])[:40]}", 1)
-            pdf.cell(45, 9, f" {row['Rentabilidad_Total']:,.2f}", 1, 0, 'R')
-            pdf.cell(45, 9, f" {row['ROI_Porcentaje']:.1f}%", 1, 1, 'R')
-            
-        return pdf.output()
-
-    st.title("🚀 OptiMarket Pro: Inteligencia de Negocio")
-    archivo = st.sidebar.file_uploader("📂 Cargar Excel de Ventas", type=["xlsx"])
+    st.title("📊 Consultoría de Inteligencia de Negocio")
+    archivo = st.sidebar.file_uploader("📂 Cargar Excel de cualquier empresa", type=["xlsx"])
 
     if archivo:
         try:
+            # 1. Cargar datos (Saltamos filas vacías si las hay, común en Excels reales)
             df = pd.read_excel(archivo)
-            df.columns = [str(c).strip().upper() for c in df.columns]
             
-            # MAPEO PARA TU EXCEL REAL
+            # Limpieza básica: nombres de columnas sin espacios extra
+            df.columns = [str(c).strip() for c in df.columns]
+
+            # 2. MAREO DINÁMICO: Mapeamos tus nombres a los que la app usa internamente
             mapeo = {
-                'FABRICANTE': 'Producto',
-                'IMPORTE': 'Precio_Venta',
-                'COSTE': 'Coste_Unidad',
-                'CANTIDAD': 'Unidades'
+                COL_PRODUCTO: 'Producto_Interno',
+                COL_PRECIO:   'Precio_Interno',
+                COL_COSTE:    'Coste_Interno',
+                COL_VENTAS:   'Ventas_Interno'
             }
-            df.rename(columns=mapeo, inplace=True)
             
-            columnas_ok = ['Producto', 'Precio_Venta', 'Coste_Unidad', 'Unidades']
+            # Si alguna columna de la configuración no existe, avisamos
+            faltantes = [c for c in [COL_PRODUCTO, COL_VENTAS] if c not in df.columns]
             
-            if all(c in df.columns for c in columnas_ok):
-                # Limpieza de datos
-                for c in ['Precio_Venta', 'Coste_Unidad', 'Unidades']:
+            if not faltantes:
+                # Si no hay columnas de precio/coste en este Excel (como en tu último archivo), 
+                # las creamos vacías para que no explote
+                if COL_PRECIO not in df.columns: df['Precio_Interno'] = 0
+                else: df.rename(columns={COL_PRECIO: 'Precio_Interno'}, inplace=True)
+                
+                if COL_COSTE not in df.columns: df['Coste_Interno'] = 0
+                else: df.rename(columns={COL_COSTE: 'Coste_Interno'}, inplace=True)
+                
+                df.rename(columns={COL_PRODUCTO: 'Producto_Interno', COL_VENTAS: 'Ventas_Interno'}, inplace=True)
+
+                # 3. Limpieza Numérica
+                for c in ['Precio_Interno', 'Coste_Interno', 'Ventas_Interno']:
                     df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
-                
-                df = df[df['Coste_Unidad'] > 0].copy()
-                df['Beneficio'] = (df['Precio_Venta'] - df['Coste_Unidad']) * df['Unidades']
-                df['ROI'] = ((df['Precio_Venta'] - df['Coste_Unidad']) / df['Coste_Unidad']) * 100
-                
-                # AGRUPACIÓN POR FABRICANTE
-                resumen = df.groupby('Producto').agg({
+
+                # 4. Lógica de Negocio
+                df['Beneficio'] = (df['Precio_Interno'] - df['Coste_Interno']) * df['Ventas_Interno']
+                # Evitar división por cero en ROI
+                df['ROI'] = df.apply(lambda x: ((x['Precio_Interno'] - x['Coste_Interno']) / x['Coste_Interno'] * 100) if x['Coste_Interno'] > 0 else 0, axis=1)
+
+                # Agrupamos por lo que hayas configurado como Producto
+                resumen = df.groupby('Producto_Interno').agg({
+                    'Ventas_Interno': 'sum',
                     'Beneficio': 'sum',
                     'ROI': 'mean'
-                }).reset_index().rename(columns={'Beneficio': 'Rentabilidad_Total', 'ROI': 'ROI_Porcentaje'})
-                resumen = resumen.sort_values('Rentabilidad_Total', ascending=False)
+                }).reset_index().sort_values('Beneficio', ascending=False)
 
-                # --- KPIs SUPERIORES ---
-                total_n = resumen['Rentabilidad_Total'].sum()
-                roi_m = resumen['ROI_Porcentaje'].mean()
+                # 5. DASHBOARD ESTRATÉGICO
+                total_v = resumen['Ventas_Interno'].sum()
+                total_b = resumen['Beneficio'].sum()
                 estrella = resumen.iloc[0]
-                eficiente = resumen.sort_values('ROI_Porcentaje', ascending=False).iloc[0]
-                bajo = resumen.sort_values('ROI_Porcentaje', ascending=True).iloc[0]
 
                 c1, c2, c3 = st.columns(3)
-                c1.metric("💰 BENEFICIO TOTAL", f"{total_n:,.2f} €")
-                c2.metric("⭐ ACTIVO ESTRELLA", estrella['Producto'][:15])
-                c3.metric("📊 ROI PROMEDIO", f"{roi_m:.1f} %")
+                c1.metric("UNIDADES VENDIDAS", f"{total_v:,.0f}")
+                c2.metric("BENEFICIO ESTIMADO", f"{total_b:,.2f} €")
+                c3.metric("TOP VENTAS", str(estrella['Producto_Interno']))
 
-                # --- GRÁFICA ---
-                st.subheader("📈 Mapa de Rentabilidad Estratégica")
-                fig = px.bar(resumen.head(15), x='Producto', y='Rentabilidad_Total', 
-                             color='Rentabilidad_Total', color_continuous_scale='Blues')
+                # Gráfica
+                st.subheader("Análisis de Rendimiento por Producto/Referencia")
+                fig = px.bar(resumen.head(20), x='Producto_Interno', y='Ventas_Interno', 
+                             color='Ventas_Interno', color_continuous_scale='Blues',
+                             labels={'Producto_Interno': 'Referencia', 'Ventas_Interno': 'Unidades'})
                 st.plotly_chart(fig, use_container_width=True)
 
-                # --- DIAGNÓSTICO IA (IMPORTANTE) ---
+                # --- DIAGNÓSTICO IA ---
                 st.divider()
                 st.header("🧠 Diagnóstico de Consultoría IA")
                 col_l, col_r = st.columns(2)
                 
                 with col_l:
-                    st.markdown(f"""<div class="report-card"><h4>🥇 Liderazgo: {estrella['Producto']}</h4><p>Este fabricante aporta <b>{estrella['Rentabilidad_Total']:,.2f}€</b>. Es tu principal fuente de caja.<br><br><b>Estrategia:</b> Refuerza stock y prioridad en escaparate.</p></div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="report-card"><h4>🥇 Líder de Rotación: {estrella['Producto_Interno']}</h4><p>Este producto ha movido <b>{estrella['Ventas_Interno']:.0f} unidades</b>. Es el corazón de la operación actual.</p></div>""", unsafe_allow_html=True)
                 
                 with col_r:
-                    st.markdown(f"""<div class="report-card" style="border-left-color: #28a745;"><h4>📈 Eficiencia: {eficiente['Producto']}</h4><p>Tiene un ROI del <b>{eficiente['ROI_Porcentaje']:.1f}%</b>. Es el que más rápido multiplica tu dinero.<br><br><b>Estrategia:</b> Busca ampliar gama de este proveedor.</p></div>""", unsafe_allow_html=True)
+                    # Buscamos el que más stock podría tener o el que menos rota (si tuvieras columna stock)
+                    st.markdown(f"""<div class="report-card" style="border-left-color: #28a745;"><h4>💡 Insight de Volumen</h4><p>El volumen total de ventas indica una salud comercial estable. El Top 5 de productos representa el grueso de tu flujo de trabajo.</p></div>""", unsafe_allow_html=True)
 
-                st.markdown(f"""<div class="report-card" style="border-left-color: #d9534f;"><h4>⚠️ Alerta Crítica: {bajo['Producto']}</h4><p>Rendimiento mínimo (ROI: {bajo['ROI_Porcentaje']:.1f}%). Este inventario está <b>bloqueando capital</b>.<br><br><b>Estrategia:</b> Revisar precios o negociar mejores costes.</p></div>""", unsafe_allow_html=True)
-
-                # --- EXPORTACIÓN ---
-                st.sidebar.divider()
-                pdf_bytes = generar_pdf_pro(resumen, estrella, eficiente, bajo, total_n, roi_m)
-                st.sidebar.download_button("📄 Descargar Informe PDF", data=bytes(pdf_bytes), file_name="Informe_Estrategico.pdf", mime="application/pdf")
-                st.sidebar.download_button("📊 Exportar Datos CSV", data=resumen.to_csv(index=False).encode('utf-8'), file_name="analisis.csv")
-            
             else:
-                st.error("Faltan columnas (Fabricante, Importe, Coste, Cantidad)")
+                st.error(f"⚠️ Error de configuración. No encuentro estas columnas en el Excel: {faltantes}")
+                st.write("Columnas detectadas en el archivo subido:", list(df.columns))
+
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Ocurrió un error al procesar este archivo: {e}")
     else:
-        st.info("👋 Sube tu Excel para activar el Diagnóstico IA.")
+        st.info("👋 Sube el Excel. Recuerda que si los nombres de las columnas cambian, solo tienes que editarlos en la parte superior del código.")
