@@ -63,7 +63,7 @@ def detectar_columna(columnas, tipo):
 def analizar_con_ia(resumen_datos: dict) -> str:
     """Llama a la API de Claude para analizar los datos de ventas."""
     try:
-        client = anthropic.Anthropic()
+        client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
         
         prompt = f"""Eres un consultor experto en retail y optimización de tiendas. 
 Analiza estos datos de ventas y proporciona un análisis estratégico en español.
