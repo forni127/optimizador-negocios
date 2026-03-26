@@ -2,77 +2,78 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from fpdf import FPDF
-import datetime
 
-# --- CONFIGURACIÓN DE COLUMNAS (Para tu Excel de Zapatería) ---
-COL_PRODUCTO = "REFERENC."    
-COL_VENTAS   = "VENDIDO"      
-COL_STOCK    = "STOCK"        
-
-st.set_page_config(page_title="OptiMarket Pro", page_icon="🚀", layout="wide")
+st.set_page_config(page_title="OptiMarket Pro | Multi-Cliente", layout="wide")
 
 # --- SEGURIDAD ---
 if "auth" not in st.session_state: st.session_state.auth = False
 if not st.session_state.auth:
-    st.title("🔐 Acceso Privado")
-    clave = st.text_input("Contraseña:", type="password")
+    st.title("🔐 Acceso Clientes")
+    clave = st.text_input("Contraseña de Acceso:", type="password")
     if st.button("Entrar"):
         if clave == "SOCIO2024":
             st.session_state.auth = True
             st.rerun()
         else: st.error("Clave incorrecta")
 else:
-    # Estilos Visuales
-    st.markdown("""
-        <style>
-        .report-card { background-color: #ffffff; padding: 25px; border-radius: 12px; border-left: 6px solid #0047AB; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); color: #1e1e1e; }
-        h4 { color: #0047AB; margin-top: 0; }
-        </style>
-        """, unsafe_allow_html=True)
-
-    st.title("📊 Análisis de Temporada")
-    archivo = st.sidebar.file_uploader("Sube el archivo Excel", type=["xlsx"])
+    st.title("📊 Inteligencia de Negocio Multi-Cliente")
+    archivo = st.sidebar.file_uploader("📂 Sube cualquier Excel de ventas", type=["xlsx"])
 
     if archivo:
         try:
-            # Cargamos el Excel saltando la primera fila que está vacía
-            df = pd.read_excel(archivo, skiprows=1)
-            df.columns = [str(c).strip() for c in df.columns]
+            # 1. LEER EXCEL (Detectar si hay basura arriba)
+            raw_df = pd.read_excel(archivo)
+            
+            # Si hay muchos nombres raros (Unnamed), saltamos una fila como en tu excel de zapatos
+            if raw_df.columns.str.contains('Unnamed').sum() > (len(raw_df.columns) / 2):
+                df = pd.read_excel(archivo, skiprows=1)
+            else:
+                df = raw_df
 
-            if COL_PRODUCTO in df.columns and COL_VENTAS in df.columns:
-                # Limpiar números
-                df[COL_VENTAS] = pd.to_numeric(df[COL_VENTAS], errors='coerce').fillna(0)
-                df[COL_STOCK] = pd.to_numeric(df[COL_STOCK], errors='coerce').fillna(0)
+            # 2. LIMPIEZA TOTAL DE COLUMNAS (MAYÚSCULAS Y SIN ESPACIOS)
+            df.columns = [str(c).strip().upper() for c in df.columns]
 
-                # Resumen por Referencia
-                res = df.groupby(COL_PRODUCTO).agg({COL_VENTAS:'sum', COL_STOCK:'sum'}).reset_index()
-                res = res.sort_values(COL_VENTAS, ascending=False)
+            # 3. BUSCADOR INTELIGENTE (Da igual mayúsculas o minúsculas)
+            mapeo = {}
+            for col in df.columns:
+                # Buscamos coincidencias sin importar cómo esté escrito
+                if any(x in col for x in ['REF', 'PROD', 'MOD', 'ART', 'FABRI']): mapeo[col] = 'Producto'
+                elif any(x in col for x in ['VEND', 'CANT', 'UNID']): mapeo[col] = 'Ventas'
+                elif any(x in col for x in ['COST']): mapeo[col] = 'Coste'
+                elif any(x in col for x in ['PREC', 'IMP', 'PVP', 'VALOR']): mapeo[col] = 'Precio'
+                elif any(x in col for x in ['STOCK']): mapeo[col] = 'Stock'
 
-                # KPIs
-                c1, c2, c3 = st.columns(3)
-                c1.metric("PARES VENDIDOS", f"{res[COL_VENTAS].sum():,.0f}")
-                c2.metric("STOCK TOTAL", f"{res[COL_STOCK].sum():,.0f}")
-                estrella = res.iloc[0]
-                c3.metric("TOP REF", str(estrella[COL_PRODUCTO]))
+            df = df.rename(columns=mapeo)
+
+            # 4. COMPROBACIÓN Y CÁLCULOS
+            if 'Producto' in df.columns and 'Ventas' in df.columns:
+                for c in ['Ventas', 'Coste', 'Precio', 'Stock']:
+                    if c in df.columns:
+                        df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+                
+                # Agrupar por producto/referencia
+                res = df.groupby('Producto').agg({'Ventas': 'sum'}).reset_index()
+                res = res.sort_values('Ventas', ascending=False)
+
+                # Dashboard Simple
+                c1, c2 = st.columns(2)
+                c1.metric("VOLUMEN TOTAL", f"{res['Ventas'].sum():,.0f} uds")
+                c2.metric("TOP PRODUCTO", str(res.iloc[0]['Producto']))
 
                 # Gráfica
-                fig = px.bar(res.head(15), x=COL_PRODUCTO, y=COL_VENTAS, color=COL_VENTAS, 
-                             color_continuous_scale='Blues', title="Ventas por Referencia")
+                fig = px.bar(res.head(15), x='Producto', y='Ventas', 
+                             color='Ventas', color_continuous_scale='Turbo',
+                             title="Distribución de Ventas")
                 st.plotly_chart(fig, use_container_width=True)
 
-                # --- DIAGNÓSTICO IA ---
+                # Diagnóstico IA
                 st.divider()
-                st.header("🧠 Consultoría IA")
-                l, r = st.columns(2)
-                with l:
-                    st.markdown(f'<div class="report-card"><h4>🥇 Líder: {estrella[COL_PRODUCTO]}</h4><p>Has vendido {estrella[COL_VENTAS]:.0f} unidades. Es tu mejor artículo este mes.</p></div>', unsafe_allow_html=True)
-                with r:
-                    sobrante = res.sort_values(COL_STOCK, ascending=False).iloc[0]
-                    st.markdown(f'<div class="report-card" style="border-left-color: #d9534f;"><h4>⚠️ Exceso: {sobrante[COL_PRODUCTO]}</h4><p>Tienes {sobrante[COL_STOCK]:.0f} unidades en stock. Toca liquidar o promocionar.</p></div>', unsafe_allow_html=True)
-
+                st.success(f"✅ **Análisis Final:** Se han detectado las columnas correctamente. El artículo **{res.iloc[0]['Producto']}** lidera el volumen de ventas.")
             else:
-                st.error(f"Columnas no encontradas. Veo: {list(df.columns)}")
+                st.error("❌ No he podido identificar las columnas.")
+                st.write("Columnas encontradas en el Excel:", list(df.columns))
+
         except Exception as e:
             st.error(f"Error técnico: {e}")
     else:
-        st.info("Sube el Excel en el panel lateral.")
+        st.info("👋 Sube un archivo para empezar. No importa el formato de los títulos, yo los entiendo.")
