@@ -5,115 +5,116 @@ from fpdf import FPDF
 import datetime
 
 # =========================================================
-# 🛠️ SECCIÓN DE CONFIGURACIÓN PARA: RESUMEN-TEMPORADA-ART.xlsx
+# 🛠️ CONFIGURACIÓN RÁPIDA DE COLUMNAS (Cambia esto según el cliente)
 # =========================================================
-COL_PRODUCTO = "REFERENC."    # Es la columna que identifica el artículo
-COL_PRECIO   = "PRECIO"       # Tu Excel NO tiene esta columna, el código la creará a 0
-COL_COSTE    = "COSTE"        # Tu Excel NO tiene esta columna, el código la creará a 0
-COL_VENTAS   = "VENDIDO"      # Es la columna con las unidades vendidas
+# Para el archivo "RESUMEN-TEMPORADA-ART.xlsx":
+COL_PRODUCTO = "REFERENC."    
+COL_PRECIO   = "PRECIO_VENTA" # Si no existe, el código creará una estimación
+COL_COSTE    = "COSTE_UNIDAD" # Si no existe, el código creará una estimación
+COL_VENTAS   = "VENDIDO"      
 # =========================================================
 
-st.set_page_config(page_title="OptiMarket Pro | Multi-Empresa", page_icon="🚀", layout="wide")
+# --- BLOQUE DE SEGURIDAD ---
+st.set_page_config(page_title="OptiMarket Pro | Intelligence", page_icon="🚀", layout="wide")
 
-# --- SEGURIDAD ---
-if "auth" not in st.session_state: st.session_state.auth = False
+if "auth" not in st.session_state:
+    st.session_state.auth = False
+
 if not st.session_state.auth:
     st.title("🔐 Acceso Privado")
-    clave = st.text_input("Contraseña:", type="password")
+    clave = st.text_input("Introduce la contraseña:", type="password")
     if st.button("Entrar"):
         if clave == "SOCIO2024":
             st.session_state.auth = True
             st.rerun()
-        else: st.error("Incorrecta")
+        else:
+            st.error("Clave incorrecta")
 else:
-    # Estilos de la IA
+    # --- TU DISEÑO Y ESTILOS ---
     st.markdown("""
         <style>
         .report-card { background-color: #ffffff; padding: 25px; border-radius: 12px; border-left: 6px solid #0047AB; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); color: #1e1e1e; }
-        h4 { color: #0047AB; margin-top: 0; }
+        .stMetric { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e0e6ed; }
+        h4 { color: #0047AB; margin-top: 0; margin-bottom: 10px; }
         </style>
         """, unsafe_allow_html=True)
 
-    st.title("📊 Consultoría de Inteligencia de Negocio")
-    archivo = st.sidebar.file_uploader("📂 Cargar Excel de cualquier empresa", type=["xlsx"])
+    # --- FUNCIÓN PDF POTENCIADA (Corregida para fpdf2) ---
+    def generar_pdf_pro(df, estrella, eficiente, bajo, total, roi_medio):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("helvetica", 'B', 22)
+        pdf.set_text_color(0, 71, 171)
+        pdf.cell(190, 15, "OPTIMARKET PRO", ln=True, align='C')
+        pdf.ln(10)
+        pdf.set_font("helvetica", 'B', 14)
+        pdf.set_text_color(0, 0, 0)
+        pdf.cell(0, 12, "1. RESUMEN EJECUTIVO", ln=True)
+        pdf.set_font("helvetica", '', 12)
+        resumen = (f"Durante el periodo analizado, el negocio ha generado un beneficio neto total de {total:,.2f} EUR, "
+                   f"con un retorno de inversion (ROI) promedio del {roi_medio:.1f}% sobre el inventario movilizado.")
+        pdf.multi_cell(0, 8, resumen)
+        pdf.ln(10)
+        pdf.set_font("helvetica", 'B', 14)
+        pdf.cell(0, 12, "2. ANALISIS ESTRATEGICO (INSIGHTS)", ln=True)
+        pdf.ln(5)
+        pdf.set_font("helvetica", 'B', 12)
+        pdf.cell(0, 10, f"> LIDER DE INGRESOS: {estrella['Producto']}", ln=True)
+        pdf.set_font("helvetica", '', 11)
+        pdf.multi_cell(0, 8, f"Este activo representa el mayor flujo de caja ({estrella['Rentabilidad_Total']:,.2f} EUR).")
+        pdf.ln(5)
+        pdf.set_font("helvetica", 'B', 12)
+        pdf.cell(0, 10, f"> MAXIMA EFICIENCIA: {eficiente['Producto']}", ln=True)
+        pdf.set_font("helvetica", '', 11)
+        pdf.multi_cell(0, 8, f"Con un ROI del {eficiente['ROI_Porcentaje']:.1f}%, es el mejor multiplicador de capital.")
+        pdf.ln(10)
+        pdf.set_font("helvetica", 'B', 11)
+        pdf.cell(90, 10, " Item", 1)
+        pdf.cell(50, 10, " Beneficio (EUR)", 1)
+        pdf.cell(40, 10, " ROI %", 1, 1)
+        pdf.set_font("helvetica", '', 10)
+        for i, row in df.head(30).iterrows():
+            pdf.cell(90, 10, f" {str(row['Producto'])[:35]}", 1)
+            pdf.cell(50, 10, f" {row['Rentabilidad_Total']:,.2f}", 1)
+            pdf.cell(40, 10, f" {row['ROI_Porcentaje']:.1f}%", 1, 1)
+        return pdf.output()
 
-if archivo:
+    # --- INTERFAZ ---
+    st.title("🚀 OptiMarket Pro")
+    archivo = st.sidebar.file_uploader("📂 Cargar Datos de Ventas (Excel)", type=["xlsx"])
+
+    if archivo:
         try:
-            # ESTA ES LA LINEA CLAVE: añadimos skiprows=1
-            df = pd.read_excel(archivo, skiprows=1) 
+            # NOTA: Usamos skiprows=1 para saltar la fila vacía de tu Excel
+            df = pd.read_excel(archivo, skiprows=1)
             
-            # Limpieza de nombres de columnas
+            # Limpiamos nombres de columnas (quitar espacios)
             df.columns = [str(c).strip() for c in df.columns]
 
-            # Mapeo usando las variables que pusimos arriba
+            # MAREO DINÁMICO DE TUS COLUMNAS
             mapeo = {
-                COL_PRODUCTO: 'Producto_Interno',
-                COL_VENTAS:   'Ventas_Interno'
+                COL_PRODUCTO: 'Producto',
+                COL_VENTAS: 'Ventas_Mes_Unidades'
             }
-            # Si alguna columna de la configuración no existe, avisamos
-            faltantes = [c for c in [COL_PRODUCTO, COL_VENTAS] if c not in df.columns]
             
-            if not faltantes:
-                # Si no hay columnas de precio/coste en este Excel (como en tu último archivo), 
-                # las creamos vacías para que no explote
-                if COL_PRECIO not in df.columns: df['Precio_Interno'] = 0
-                else: df.rename(columns={COL_PRECIO: 'Precio_Interno'}, inplace=True)
-                
-                if COL_COSTE not in df.columns: df['Coste_Interno'] = 0
-                else: df.rename(columns={COL_COSTE: 'Coste_Interno'}, inplace=True)
-                
-                df.rename(columns={COL_PRODUCTO: 'Producto_Interno', COL_VENTAS: 'Ventas_Interno'}, inplace=True)
+            # Si el Excel tiene precio y coste los usamos, si no, creamos columnas a 0
+            if COL_PRECIO in df.columns: mapeo[COL_PRECIO] = 'Precio_Venta'
+            else: df['Precio_Venta'] = 0
+            
+            if COL_COSTE in df.columns: mapeo[COL_COSTE] = 'Coste_Unidad'
+            else: df['Coste_Unidad'] = 0
 
-                # 3. Limpieza Numérica
-                for c in ['Precio_Interno', 'Coste_Interno', 'Ventas_Interno']:
+            df.rename(columns=mapeo, inplace=True)
+
+            cols_necesarias = ['Producto', 'Ventas_Mes_Unidades']
+            
+            if all(c in df.columns for c in cols_necesarias):
+                # Limpiar números
+                for c in ['Precio_Venta', 'Coste_Unidad', 'Ventas_Mes_Unidades']:
                     df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
 
-                # 4. Lógica de Negocio
-                df['Beneficio'] = (df['Precio_Interno'] - df['Coste_Interno']) * df['Ventas_Interno']
-                # Evitar división por cero en ROI
-                df['ROI'] = df.apply(lambda x: ((x['Precio_Interno'] - x['Coste_Interno']) / x['Coste_Interno'] * 100) if x['Coste_Interno'] > 0 else 0, axis=1)
-
-                # Agrupamos por lo que hayas configurado como Producto
-                resumen = df.groupby('Producto_Interno').agg({
-                    'Ventas_Interno': 'sum',
-                    'Beneficio': 'sum',
-                    'ROI': 'mean'
-                }).reset_index().sort_values('Beneficio', ascending=False)
-
-                # 5. DASHBOARD ESTRATÉGICO
-                total_v = resumen['Ventas_Interno'].sum()
-                total_b = resumen['Beneficio'].sum()
-                estrella = resumen.iloc[0]
-
-                c1, c2, c3 = st.columns(3)
-                c1.metric("UNIDADES VENDIDAS", f"{total_v:,.0f}")
-                c2.metric("BENEFICIO ESTIMADO", f"{total_b:,.2f} €")
-                c3.metric("TOP VENTAS", str(estrella['Producto_Interno']))
-
-                # Gráfica
-                st.subheader("Análisis de Rendimiento por Producto/Referencia")
-                fig = px.bar(resumen.head(20), x='Producto_Interno', y='Ventas_Interno', 
-                             color='Ventas_Interno', color_continuous_scale='Blues',
-                             labels={'Producto_Interno': 'Referencia', 'Ventas_Interno': 'Unidades'})
-                st.plotly_chart(fig, use_container_width=True)
-
-                # --- DIAGNÓSTICO IA ---
-                st.divider()
-                st.header("🧠 Diagnóstico de Consultoría IA")
-                col_l, col_r = st.columns(2)
-                
-                with col_l:
-                    st.markdown(f"""<div class="report-card"><h4>🥇 Líder de Rotación: {estrella['Producto_Interno']}</h4><p>Este producto ha movido <b>{estrella['Ventas_Interno']:.0f} unidades</b>. Es el corazón de la operación actual.</p></div>""", unsafe_allow_html=True)
-                
-                with col_r:
-                    # Buscamos el que más stock podría tener o el que menos rota (si tuvieras columna stock)
-                    st.markdown(f"""<div class="report-card" style="border-left-color: #28a745;"><h4>💡 Insight de Volumen</h4><p>El volumen total de ventas indica una salud comercial estable. El Top 5 de productos representa el grueso de tu flujo de trabajo.</p></div>""", unsafe_allow_html=True)
-
-            else:
-                st.error(f"⚠️ Error de configuración. No encuentro estas columnas en el Excel: {faltantes}")
-                st.write("Columnas detectadas en el archivo subido:", list(df.columns))
-
-        except Exception as e:
-            st.error(f"Ocurrió un error al procesar este archivo: {e}")
-    else:
-        st.info("👋 Sube el Excel. Recuerda que si los nombres de las columnas cambian, solo tienes que editarlos en la parte superior del código.")
+                # CÁLCULOS DE RENTABILIDAD
+                df['Margen'] = df['Precio_Venta'] - df['Coste_Unidad']
+                df['Rentabilidad_Total'] = df['Margen'] * df['Ventas_Mes_Unidades']
+                # Evitar división por cero
+                df['ROI_Porcentaje'] = df.apply(lambda x: (x['Margen'] / x['Coste_Unidad'] * 100) if x['Coste_Un
