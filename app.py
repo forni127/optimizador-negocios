@@ -37,10 +37,6 @@ else:
     st.title("📊 Consultoría de Inteligencia de Negocio")
     archivo = st.sidebar.file_uploader("📂 Cargar Excel de cualquier empresa", type=["xlsx"])
 
-    if archivo:
-        try:
-            # 1. Cargar datos (Saltamos filas vacías si las hay, común en Excels reales)
-            # Busca la línea que carga el archivo y déjala así:
 if archivo:
         try:
             # ESTA ES LA LINEA CLAVE: añadimos skiprows=1
