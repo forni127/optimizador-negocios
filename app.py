@@ -8,6 +8,7 @@ import datetime
 # 🛠️ CONFIGURACIÓN DE COLUMNAS (Cambia esto según tu Excel)
 # =========================================================
 # Pon aquí el nombre exacto de las columnas de tu archivo Excel:
+COL_TIENDAS = "Tienda"
 COL_PRODUCTO = "Fabricante"    # Ej: "Fabricante", "Modelo", "Referencia"
 COL_MODELO = "Modelo" 
 COL_PRECIO   = "Precio"       # Ej: "Importe", "PVP", "Venta"
