@@ -2,16 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# =========================================================
-# 🛠️ DICCIONARIO MAESTRO DE SINÓNIMOS
-# =========================================================
-# Si un cliente usa un nombre raro, añádelo aquí
-S_PROD = ['PRODUCTO', 'FABRICANTE', 'REFERENC', 'MODELO', 'ARTICULO', 'ITEM', 'REF']
-S_VENT = ['CANTIDAD', 'VENDIDO', 'UNIDADES', 'VENTAS', 'CANT', 'TOTAL_VENTAS']
-S_COST = ['COSTE', 'COSTO', 'COMPRA', 'PRECIO_COMPRA', 'P_COMPRA']
-S_PREC = ['PRECIO', 'IMPORTE', 'VENTA', 'PVP', 'VALOR', 'P_VENTA']
-
-st.set_page_config(page_title="OptiMarket Pro | Global", layout="wide")
+st.set_page_config(page_title="OptiMarket Pro | Definitivo", layout="wide")
 
 # --- SEGURIDAD ---
 if "auth" not in st.session_state: st.session_state.auth = False
@@ -22,81 +13,71 @@ if not st.session_state.auth:
         if clave == "SOCIO2024":
             st.session_state.auth = True
             st.rerun()
-        else: st.error("Clave Incorrecta")
+        else: st.error("Incorrecta")
 else:
     st.title("📊 Inteligencia de Negocio")
-    archivo = st.sidebar.file_uploader("📂 Sube tu archivo (Excel o CSV)", type=["xlsx", "csv", "xls"])
+    archivo = st.sidebar.file_uploader("📂 Sube tu Excel o CSV", type=["xlsx", "csv", "xls"])
 
     if archivo:
         try:
-            # 1. LEER ARCHIVO SEGÚN FORMATO
+            # 1. LEER EL ARCHIVO
             if archivo.name.lower().endswith('.csv'):
                 df = pd.read_csv(archivo, sep=None, engine='python')
             else:
                 df = pd.read_excel(archivo)
 
-            # 2. LIMPIEZA DE FILAS VACÍAS AL PRINCIPIO
-            # Si la cabecera real no está en la fila 1, la buscamos
-            if df.columns.str.contains('Unnamed').sum() > (len(df.columns) / 2):
-                # Buscamos la fila que contenga alguna de nuestras palabras clave
-                for i in range(len(df.head(10))):
-                    fila_test = df.iloc[i].astype(str).str.upper().tolist()
-                    if any(word in " ".join(fila_test) for word in S_PROD):
-                        if archivo.name.lower().endswith('.csv'):
-                            archivo.seek(0)
-                            df = pd.read_csv(archivo, skiprows=i+1, sep=None, engine='python')
-                        else:
-                            df = pd.read_excel(archivo, skiprows=i+1)
-                        break
-
-            # 3. NORMALIZAR COLUMNAS
+            # 2. LIMPIEZA DE COLUMNAS (Quitar espacios y poner mayúsculas)
             df.columns = [str(c).strip().upper() for c in df.columns]
 
-            # 4. MAPEO INTELIGENTE
-            mapeo = {}
-            for col in df.columns:
-                if any(x in col for x in S_PROD): mapeo[col] = 'Producto'
-                elif any(x in col for x in S_VENT): mapeo[col] = 'Ventas'
-                elif any(x in col for x in S_COST): mapeo[col] = 'Coste'
-                elif any(x in col for x in S_PREC): mapeo[col] = 'Precio'
+            # 3. SELECTORES MANUALES (Para que no falle nunca)
+            st.sidebar.subheader("⚙️ Configuración de Columnas")
+            st.sidebar.write("Si no ves datos, selecciona las columnas correctas aquí:")
+            
+            # Buscamos si hay alguna que se parezca a Producto o Ventas para ponerla por defecto
+            idx_prod = 0
+            idx_vent = 0
+            for i, col in enumerate(df.columns):
+                if any(x in col for x in ['PROD', 'FABRI', 'REF', 'MOD']): idx_prod = i
+                if any(x in col for x in ['CANT', 'VEND', 'VENT']): idx_vent = i
 
-            df = df.rename(columns=mapeo)
+            col_producto = st.sidebar.selectbox("Columna de Producto/Fabricante:", df.columns, index=idx_prod)
+            col_ventas = st.sidebar.selectbox("Columna de Unidades/Ventas:", df.columns, index=idx_vent)
 
-            # 5. VALIDACIÓN Y CÁLCULOS
-            if 'Producto' in df.columns and 'Ventas' in df.columns:
-                # Convertir a números
-                for c in ['Ventas', 'Coste', 'Precio']:
-                    if c in df.columns:
-                        df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+            # 4. PROCESAMIENTO
+            if col_producto and col_ventas:
+                # Copiamos los datos a nombres fijos para el resto del código
+                df_final = df.copy()
+                df_final['Producto'] = df_final[col_producto]
+                df_final['Ventas'] = pd.to_numeric(df_final[col_ventas], errors='coerce').fillna(0)
 
-                # Cálculo de beneficio si hay datos
-                if 'Precio' in df.columns and 'Coste' in df.columns:
-                    df['Beneficio'] = (df['Precio'] - df['Coste']) * df['Ventas']
+                # Intentamos buscar precio y coste de forma automática
+                for col in df.columns:
+                    if 'PREC' in col or 'IMP' in col: df_final['Precio'] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                    if 'COST' in col: df_final['Coste'] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
+                # Cálculos
+                if 'Precio' in df_final.columns and 'Coste' in df_final.columns:
+                    df_final['Beneficio'] = (df_final['Precio'] - df_final['Coste']) * df_final['Ventas']
                 else:
-                    df['Beneficio'] = df['Ventas']
+                    df_final['Beneficio'] = df_final['Ventas']
 
-                # Agrupación Final
-                resumen = df.groupby('Producto').agg({'Ventas':'sum', 'Beneficio':'sum'}).reset_index()
-                resumen = resumen.sort_values('Beneficio', ascending=False)
+                # Resumen
+                res = df_final.groupby('Producto').agg({'Ventas':'sum', 'Beneficio':'sum'}).reset_index()
+                res = res.sort_values('Beneficio', ascending=False)
 
                 # --- DASHBOARD ---
-                k1, k2, k3 = st.columns(3)
-                k1.metric("📦 TOTAL UNIDADES", f"{resumen['Ventas'].sum():,.0f}")
-                k2.metric("💰 RENTABILIDAD", f"{resumen['Beneficio'].sum():,.2f} €")
-                k3.metric("🏆 TOP VENTAS", str(resumen.iloc[0]['Producto'])[:15])
+                c1, c2 = st.columns(2)
+                c1.metric("📦 TOTAL UNIDADES", f"{res['Ventas'].sum():,.0f}")
+                c2.metric("🏆 PRODUCTO LÍDER", str(res.iloc[0]['Producto'])[:20])
 
-                st.subheader("Análisis de Rendimiento")
-                fig = px.bar(resumen.head(15), x='Producto', y='Beneficio', color='Beneficio',
-                             color_continuous_scale='Turbo', labels={'Beneficio': 'Ganancia/Unidades'})
+                st.subheader("Gráfica de Rendimiento")
+                fig = px.bar(res.head(15), x='Producto', y='Beneficio', color='Beneficio', color_continuous_scale='Turbo')
                 st.plotly_chart(fig, use_container_width=True)
                 
-                st.success(f"✅ Detectado correctamente como: {list(mapeo.values())}")
-            else:
-                st.error("❌ No he podido identificar las columnas.")
-                st.info("Asegúrate de que tu Excel tenga títulos como: Fabricante, Cantidad, Precio...")
-                st.write("Columnas detectadas actualmente:", list(df.columns))
-
+                st.success(f"Analizando columna: {col_producto} como producto y {col_ventas} como ventas.")
+            
         except Exception as e:
-            st.error(f"Error técnico al procesar: {e}")
+            st.error(f"Error al procesar: {e}")
+            st.write("Prueba a subir el archivo de nuevo o comprueba que no esté abierto en tu ordenador.")
     else:
-        st.info("👋 Sube un archivo para analizar los datos de cualquier cliente.")
+        st.info("👋 Sube un archivo en el panel izquierdo para empezar.")
