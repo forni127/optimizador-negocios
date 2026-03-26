@@ -9,272 +9,210 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import cm
-from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER
 
-st.set_page_config(page_title="OptiMarket Pro | Panel de Control", layout="wide")
+st.set_page_config(page_title="OptiMarket Pro", layout="wide")
 
 # ──────────────────────────────────────────────
-# DETECCIÓN INTELIGENTE DE COLUMNAS
+# DETECCIÓN DE COLUMNAS
 # ──────────────────────────────────────────────
-COLUMN_PATTERNS = {
-    "producto": ["PRODUCTO","PROD","FABRICANTE","FAB","ARTICULO","ARTÍCULO",
-                 "ART","ITEM","NOMBRE","DESCRIPCION","DESCRIPCIÓN","DESC",
-                 "REFERENCIA","REF","SKU","MARCA","CATEGORIA","CATEGORÍA"],
-    "cantidad":  ["CANTIDAD","CANT","UNIDADES","UDS","UD","VENTAS","VENTA",
-                  "VENDIDO","VENDIDOS","QTY","QUANTITY","UNITS","VOLUMEN","VOL"],
-    "importe":   ["IMPORTE","IMP","TOTAL","INGRESOS","INGRESO","FACTURADO",
-                  "FACTURACION","FACTURACIÓN","REVENUE","EUROS","EUR","MONTO",
-                  "VALOR","VAL","VENTA_TOTAL","TOTAL_VENTA","PVP"],
-    "precio":    ["PRECIO","PRICE","PVP","TARIFA"],
-    "tienda":    ["TIENDA","STORE","LOCAL","SUCURSAL","DELEGACION","DELEGACIÓN",
-                  "PUNTO","SEDE","ESTABLECIMIENTO","COMERCIO","UBICACION","UBICACIÓN"],
-    "fecha":     ["FECHA","DATE","DIA","DÍA","MES","MES_AÑO","PERIODO",
-                  "PERÍODO","AÑO","ANO","YEAR","MONTH","TRIMESTRE"],
-    "coste":     ["COSTE","COSTO","COST","PRECIO_COSTE","PRECIO_COMPRA",
-                  "COMPRA","PVC","COSTE_UNIT","COSTO_UNIT"],
+PATTERNS = {
+    "producto": ["FABRICANTE","FAB","PRODUCTO","PROD","ARTICULO","ARTÍCULO","ART",
+                 "ITEM","NOMBRE","DESCRIPCION","DESCRIPCIÓN","DESC","REFERENCIA",
+                 "REF","SKU","MARCA","CATEGORIA","CATEGORÍA"],
+    "cantidad": ["CANTIDAD","CANT","UNIDADES","UDS","UD","VENTAS","VENTA",
+                 "VENDIDO","VENDIDOS","QTY","QUANTITY","UNITS","VOLUMEN","VOL"],
+    "importe":  ["IMPORTE","IMP","TOTAL","INGRESOS","INGRESO","FACTURADO",
+                 "FACTURACION","FACTURACIÓN","REVENUE","EUROS","EUR","MONTO",
+                 "VALOR","VAL","VENTA_TOTAL","TOTAL_VENTA","PVP","PRECIO","PRICE"],
+    "coste":    ["COSTE","COSTO","COST","PRECIO_COSTE","PRECIO_COMPRA",
+                 "COMPRA","PVC","COSTE_UNIT","COSTO_UNIT"],
+    "tienda":   ["TIENDA","STORE","LOCAL","SUCURSAL","DELEGACION","DELEGACIÓN",
+                 "PUNTO","SEDE","ESTABLECIMIENTO","UBICACION","UBICACIÓN"],
 }
 
-def detectar_columna(columnas, tipo):
-    patrones = COLUMN_PATTERNS.get(tipo, [])
+def detectar(columnas, tipo):
     for col in columnas:
-        col_upper = col.upper().strip()
-        for patron in patrones:
-            if patron in col_upper or col_upper in patron:
+        u = col.upper().strip()
+        for p in PATTERNS.get(tipo, []):
+            if p in u or u in p:
                 return col
     return None
 
 # ──────────────────────────────────────────────
-# CÁLCULO DE ROI y MÉTRICAS
+# MÉTRICAS
 # ──────────────────────────────────────────────
-def calcular_metricas(res: pd.DataFrame) -> pd.DataFrame:
-    """
-    Añade al DataFrame agrupado:
-      - BENEFICIO  = DIN_AUX - COST_AUX
-      - MARGEN_AUX = BENEFICIO / DIN_AUX * 100
-      - ROI_AUX    = BENEFICIO / COST_AUX * 100
-      - TICKET_AUX = DIN_AUX / VENT_AUX
-    """
-    df = res.copy()
-    if 'COST_AUX' in df.columns:
-        df['BENEFICIO']  = df['DIN_AUX'] - df['COST_AUX']
-        df['MARGEN_AUX'] = (df['BENEFICIO'] / df['DIN_AUX'].replace(0, 1) * 100).round(2)
-        df['ROI_AUX']    = (df['BENEFICIO'] / df['COST_AUX'].replace(0, 1) * 100).round(2)
-    df['TICKET_AUX'] = (df['DIN_AUX'] / df['VENT_AUX'].replace(0, 1)).round(2)
-    return df
+def calcular_metricas(df):
+    d = df.copy()
+    if 'COST_AUX' in d.columns:
+        d['BENEFICIO']  = (d['DIN_AUX'] - d['COST_AUX']).round(2)
+        d['MARGEN_AUX'] = (d['BENEFICIO'] / d['DIN_AUX'].replace(0,1) * 100).round(2)
+        d['ROI_AUX']    = (d['BENEFICIO'] / d['COST_AUX'].replace(0,1) * 100).round(2)
+    d['TICKET_AUX'] = (d['DIN_AUX'] / d['VENT_AUX'].replace(0,1)).round(2)
+    return d
 
 # ──────────────────────────────────────────────
 # ANÁLISIS AUTOMÁTICO
 # ──────────────────────────────────────────────
-def analizar_automatico(res, tienda, tiene_dinero, tiene_coste):
-    total_prods   = len(res)
-    total_uds     = res['VENT_AUX'].sum()
-    total_din     = res['DIN_AUX'].sum()
-    top1          = res.iloc[0]
-    top3          = res.head(3)
-    bottom5       = res.tail(5)
-    top20pct_din  = res.head(max(1, int(total_prods * 0.2)))['DIN_AUX'].sum()
-    concentracion = (top20pct_din / total_din * 100) if total_din > 0 else 0
-    top1_pct      = (top1['DIN_AUX'] / total_din * 100) if total_din > 0 else 0
+def analizar(res, tienda, tiene_coste):
+    n          = len(res)
+    total_uds  = res['VENT_AUX'].sum()
+    total_din  = res['DIN_AUX'].sum()
+    top1       = res.iloc[0]
+    top3_din   = res.head(3)['DIN_AUX'].sum()
+    bottom5    = res.tail(5)
+    conc       = res.head(max(1,int(n*0.2)))['DIN_AUX'].sum() / total_din * 100 if total_din else 0
+    top1_pct   = top1['DIN_AUX'] / total_din * 100 if total_din else 0
+    muertos    = res[res['DIN_AUX'] <= res['DIN_AUX'].quantile(0.15)]
 
-    umbral_bajo  = res['DIN_AUX'].quantile(0.15)
-    prod_muertos = res[res['DIN_AUX'] <= umbral_bajo]
-    n_muertos    = len(prod_muertos)
-
-    # ROI insights
-    roi_insights = []
-    if tiene_coste and 'ROI_AUX' in res.columns:
-        roi_medio    = res['ROI_AUX'].mean()
-        mejor_roi    = res.sort_values('ROI_AUX', ascending=False).iloc[0]
-        peor_roi     = res.sort_values('ROI_AUX').iloc[0]
-        roi_neg      = res[res['ROI_AUX'] < 0]
-        total_benef  = res['BENEFICIO'].sum() if 'BENEFICIO' in res.columns else 0
-
-        roi_insights = {
-            "roi_medio":   roi_medio,
-            "mejor_roi":   mejor_roi,
-            "peor_roi":    peor_roi,
-            "roi_neg":     roi_neg,
-            "total_benef": total_benef,
-        }
-
-    # Concentración
-    if concentracion > 80:
-        diag_conc = (f"Concentración **muy alta**: el 20% de productos genera el "
-                     f"**{concentracion:.0f}%** de ingresos. Rentable pero arriesgado.")
-    elif concentracion > 60:
-        diag_conc = (f"El 20% de tus productos genera el **{concentracion:.0f}%** de ingresos. "
-                     f"Concentración moderada con productos estrella definidos.")
+    # ── DIAGNÓSTICO ──
+    if conc > 80:
+        txt_conc = f"Concentración **muy alta**: el 20% de productos genera el **{conc:.0f}%** de ingresos. Rentable pero frágil."
+    elif conc > 60:
+        txt_conc = f"El 20% de productos genera el **{conc:.0f}%** de ingresos. Concentración moderada con productos estrella claros."
     else:
-        diag_conc = (f"Catálogo **bien distribuido**: el 20% superior genera el {concentracion:.0f}% "
-                     f"de ingresos. Cartera equilibrada.")
+        txt_conc = f"Catálogo **equilibrado**: el 20% superior genera el {conc:.0f}% de ingresos, sin dependencia excesiva."
 
-    top3_pct = top3['DIN_AUX'].sum() / total_din * 100 if total_din > 0 else 0
-    unidad   = "ingresos" if tiene_dinero else "unidades"
-
-    diagnostico = [
-        (f"Análisis de **{total_prods} productos** en "
-         f"{'todas las tiendas' if tienda == 'TODAS' else f'la tienda {tienda}'}. "
-         f"Volumen: **{total_uds:,.0f} uds** | "
-         f"{'Ingresos: **' + f'{total_din:,.2f} €**' if tiene_dinero else f'Total: **{total_din:,.0f}**'}."),
-        (f"Líder: **{top1['PROD_AUX']}** con el **{top1_pct:.1f}%** del total de {unidad}. "
-         f"El top 3 acumula el **{top3_pct:.1f}%**."),
-        diag_conc,
+    diag = [
+        f"Análisis de **{n} productos** · {'todas las tiendas' if tienda=='TODAS' else tienda} · "
+        f"**{total_uds:,.0f} uds** vendidas · **{total_din:,.2f} €** en ingresos.",
+        f"Líder: **{top1['PROD_AUX']}** representa el **{top1_pct:.1f}%** de ingresos. "
+        f"El top 3 acumula el **{top3_din/total_din*100:.1f}%**.",
+        txt_conc,
     ]
-    if roi_insights:
-        benef_txt = f"{roi_insights['total_benef']:,.2f} €"
-        diagnostico.append(
-            f"ROI medio del catálogo: **{roi_insights['roi_medio']:.1f}%** | "
-            f"Beneficio total estimado: **{benef_txt}**. "
-            f"Mejor ROI: **{roi_insights['mejor_roi']['PROD_AUX']}** "
-            f"({roi_insights['mejor_roi']['ROI_AUX']:.1f}%)."
+    if tiene_coste and 'ROI_AUX' in res.columns:
+        roi_med   = res['ROI_AUX'].mean()
+        benef_tot = res['BENEFICIO'].sum()
+        best_roi  = res.sort_values('ROI_AUX', ascending=False).iloc[0]
+        diag.append(
+            f"ROI medio: **{roi_med:.1f}%** · Beneficio total: **{benef_tot:,.2f} €** · "
+            f"Producto más rentable: **{best_roi['PROD_AUX']}** ({best_roi['ROI_AUX']:.1f}%)"
         )
 
-    # Oportunidades
-    oportunidades = []
-    if roi_insights:
-        mr = roi_insights['mejor_roi']
-        if mr['PROD_AUX'] != top1['PROD_AUX']:
-            oportunidades.append(
-                f"**{mr['PROD_AUX']} tiene el mejor ROI** ({mr['ROI_AUX']:.1f}%) "
-                f"pero quizás no es el más promocionado. Potenciarlo es la forma más eficiente "
-                f"de aumentar beneficio sin aumentar costes.")
-        # Productos con alto volumen pero ROI bajo
-        if 'ROI_AUX' in res.columns:
-            alto_vol_bajo_roi = res[
-                (res['VENT_AUX'] > res['VENT_AUX'].quantile(0.6)) &
-                (res['ROI_AUX'] < roi_insights['roi_medio'])
-            ].sort_values('VENT_AUX', ascending=False).head(2)
-            if not alto_vol_bajo_roi.empty:
-                nombres = ", ".join(alto_vol_bajo_roi['PROD_AUX'].tolist())
-                oportunidades.append(
-                    f"**{nombres}** venden mucho pero su ROI está por debajo de la media. "
-                    f"Renegocia el precio de compra con el proveedor o ajusta el PVP al alza.")
+    # ── OPORTUNIDADES ──
+    opps = []
+    if tiene_coste and 'ROI_AUX' in res.columns:
+        roi_med  = res['ROI_AUX'].mean()
+        best_roi = res.sort_values('ROI_AUX', ascending=False).iloc[0]
+        if best_roi['PROD_AUX'] != top1['PROD_AUX']:
+            opps.append(
+                f"**{best_roi['PROD_AUX']}** tiene el mejor ROI ({best_roi['ROI_AUX']:.1f}%) "
+                f"pero no es el líder de ventas. Potenciarlo es la forma más eficiente de aumentar beneficio.")
+        bajo_roi = res[
+            (res['VENT_AUX'] > res['VENT_AUX'].quantile(0.6)) & (res['ROI_AUX'] < roi_med)
+        ].head(2)
+        if not bajo_roi.empty:
+            opps.append(
+                f"**{', '.join(bajo_roi['PROD_AUX'].tolist())}** venden mucho pero su ROI está bajo la media. "
+                f"Renegocia precio de compra o ajusta PVP al alza.")
+    best_ticket = res.sort_values('TICKET_AUX', ascending=False).iloc[0]
+    if best_ticket['PROD_AUX'] != top1['PROD_AUX']:
+        opps.append(
+            f"**{best_ticket['PROD_AUX']}** tiene el mejor ticket medio ({best_ticket['TICKET_AUX']:,.2f} €/ud). "
+            f"Combínalo con el líder en packs o promoción cruzada.")
+    if conc > 70:
+        opps.append(
+            f"Diversifica: con {conc:.0f}% de ingresos concentrados, potencia 2-3 productos del segundo nivel como seguro.")
+    else:
+        opps.append("Base diversificada sólida. Analiza qué producto del top 5-10 tiene tendencia creciente e invierte en él.")
 
-    ticket_col = 'TICKET_AUX' if 'TICKET_AUX' in res.columns else None
-    if ticket_col:
-        mejor_ticket = res.sort_values(ticket_col, ascending=False).iloc[0]
-        if mejor_ticket['PROD_AUX'] != top1['PROD_AUX']:
-            oportunidades.append(
-                f"**{mejor_ticket['PROD_AUX']}** tiene el mejor valor por unidad "
-                f"(**{mejor_ticket[ticket_col]:,.2f} €/ud**). "
-                f"Considera combinarlo con el líder en pack o promoción cruzada.")
-
-    if concentracion > 70:
-        oportunidades.append(
-            f"**Diversifica para reducir riesgo**: {concentracion:.0f}% de ingresos en pocos productos. "
-            f"Potencia 2-3 del segundo nivel como seguro ante imprevistos.")
-
-    # Alertas
+    # ── ALERTAS ──
     alertas = []
-    if n_muertos > 0:
-        pct      = n_muertos / total_prods * 100
-        nombres  = ", ".join(prod_muertos['PROD_AUX'].tolist()[:3])
+    if len(muertos) > 0:
+        nombres = ", ".join(muertos['PROD_AUX'].tolist()[:3])
         alertas.append(
-            f"**{n_muertos} productos de bajo rendimiento** ({pct:.0f}% del catálogo): "
-            f"{nombres}{'...' if n_muertos > 3 else ''}. "
-            f"Ocupan capital sin retorno — evalúa liquidarlos.")
+            f"**{len(muertos)} productos de bajo rendimiento** ({len(muertos)/n*100:.0f}% del catálogo): "
+            f"{nombres}{'...' if len(muertos)>3 else ''}. Ocupan capital sin retorno.")
     if top1_pct > 35:
         alertas.append(
-            f"**Alta dependencia de {top1['PROD_AUX']}** ({top1_pct:.0f}% de ingresos). "
-            f"Si falla este proveedor el impacto es crítico. Trabaja alternativas.")
+            f"**Dependencia crítica de {top1['PROD_AUX']}** ({top1_pct:.0f}% de ingresos). "
+            f"Un fallo de suministro sería devastador. Trabaja alternativas ahora.")
     elif top1_pct > 20:
         alertas.append(
             f"**{top1['PROD_AUX']}** concentra el {top1_pct:.0f}% de ingresos. "
             f"Asegura stock y negocia condiciones estables.")
-    if roi_insights:
-        neg = roi_insights['roi_neg']
+    if tiene_coste and 'ROI_AUX' in res.columns:
+        neg = res[res['ROI_AUX'] < 0]
         if not neg.empty:
             alertas.append(
-                f"**{len(neg)} producto(s) con ROI negativo**: "
-                f"{', '.join(neg['PROD_AUX'].tolist()[:3])}. "
-                f"Estás perdiendo dinero con cada venta. Actúa esta semana.")
-        pr = roi_insights['peor_roi']
-        if pr['ROI_AUX'] < 5 and pr['ROI_AUX'] >= 0:
+                f"**{len(neg)} producto(s) con ROI negativo**: {', '.join(neg['PROD_AUX'].tolist()[:3])}. "
+                f"Cada venta te cuesta dinero. Actúa esta semana.")
+        peor_roi = res.sort_values('ROI_AUX').iloc[0]
+        if 0 <= peor_roi['ROI_AUX'] < 5:
             alertas.append(
-                f"**{pr['PROD_AUX']}** tiene un ROI muy bajo ({pr['ROI_AUX']:.1f}%). "
+                f"**{peor_roi['PROD_AUX']}** tiene ROI del {peor_roi['ROI_AUX']:.1f}%. "
                 f"Apenas cubre costes. Revisa si merece la pena mantenerlo.")
 
-    # Recomendación
-    if roi_insights and not roi_insights['roi_neg'].empty:
-        rec = (f"Esta semana: **elimina o renegocia los productos con ROI negativo** "
-               f"({', '.join(roi_insights['roi_neg']['PROD_AUX'].tolist()[:2])}). "
-               f"Cada venta de esos productos te cuesta dinero.")
+    # ── RECOMENDACIÓN ──
+    if tiene_coste and 'ROI_AUX' in res.columns:
+        neg = res[res['ROI_AUX'] < 0]
+        roi_med = res['ROI_AUX'].mean()
+        best_roi = res.sort_values('ROI_AUX', ascending=False).iloc[0]
+        if not neg.empty:
+            rec = (f"Esta semana: **elimina o renegocia los productos con ROI negativo** "
+                   f"({', '.join(neg['PROD_AUX'].tolist()[:2])}). Cada venta te cuesta dinero real.")
+        elif roi_med < 15:
+            rec = (f"Esta semana: **revisa precios de compra del top 10**. "
+                   f"Con ROI medio del {roi_med:.1f}% hay margen de mejora renegociando con proveedores.")
+        else:
+            rec = (f"Esta semana: **potencia {best_roi['PROD_AUX']} (ROI {best_roi['ROI_AUX']:.1f}%)** — "
+                   f"es tu producto más rentable y tiene recorrido de crecimiento.")
     elif top1_pct > 40:
-        rec = (f"Esta semana: **asegura el suministro de {top1['PROD_AUX']}** — "
-               f"negocia stock garantizado con el proveedor. Es tu motor principal.")
-    elif n_muertos > total_prods * 0.3:
-        rec = ("Esta semana: **limpia el catálogo**. Más del 30% de productos están por debajo "
-               "del umbral mínimo. Libera capital liquidándolos.")
-    elif roi_insights and roi_insights['roi_medio'] < 15:
-        rec = (f"Esta semana: **revisa los precios de compra del top 10**. "
-               f"Con un ROI medio del {roi_insights['roi_medio']:.1f}% hay margen de mejora "
-               f"renegociando con proveedores o ajustando PVPs.")
+        rec = f"Esta semana: **asegura el suministro de {top1['PROD_AUX']}** — negocia stock garantizado con el proveedor."
+    elif len(muertos) > n * 0.3:
+        rec = "Esta semana: **limpia el catálogo**. Más del 30% de productos están por debajo del umbral mínimo."
     else:
-        rec = (f"Esta semana: **potencia {roi_insights['mejor_roi']['PROD_AUX']}"
-               f" (ROI {roi_insights['mejor_roi']['ROI_AUX']:.1f}%)** — "
-               f"es tu producto más rentable y puede crecer más."
-               if roi_insights else
-               f"Esta semana: **revisa precios del top 5** comparando con competencia. "
-               f"Con base sólida, ajustar márgenes mejora rentabilidad sin tocar volumen.")
+        rec = "Esta semana: **revisa precios del top 5** comparando con competencia. Ajustar márgenes mejora rentabilidad sin tocar volumen."
 
-    return {"diagnostico": diagnostico, "oportunidades": oportunidades,
-            "alertas": alertas, "recomendacion": rec}
+    return {"diagnostico": diag, "oportunidades": opps, "alertas": alertas, "recomendacion": rec}
 
 
-def formatear_html(analisis):
+def html_analisis(a):
     html = ""
-    secciones = [
-        ("🩺 Diagnóstico rápido",       analisis["diagnostico"],   "#e8f4fd", "#1565c0"),
-        ("💡 Oportunidades detectadas",  analisis["oportunidades"], "#e8f5e9", "#2e7d32"),
-        ("⚠️ Alertas",                   analisis["alertas"],       "#fff8e1", "#e65100"),
-    ]
-    for titulo, items, bg, color in secciones:
-        html += (f"<div style='background:{bg};border-left:4px solid {color};"
-                 f"border-radius:8px;padding:14px 18px;margin:10px 0'>")
-        html += f"<b style='color:{color};font-size:15px'>{titulo}</b><br><br>"
-        for item in items:
-            t = item
-            while "**" in t:
-                t = t.replace("**", "<b>", 1).replace("**", "</b>", 1)
+    for titulo, items, bg, col in [
+        ("🩺 Diagnóstico rápido",       a["diagnostico"],   "#e8f4fd","#1565c0"),
+        ("💡 Oportunidades",            a["oportunidades"], "#e8f5e9","#2e7d32"),
+        ("⚠️ Alertas",                  a["alertas"],       "#fff8e1","#e65100"),
+    ]:
+        html += f"<div style='background:{bg};border-left:4px solid {col};border-radius:8px;padding:14px 18px;margin:10px 0'>"
+        html += f"<b style='color:{col};font-size:15px'>{titulo}</b><br><br>"
+        for it in items:
+            t = it
+            while "**" in t: t = t.replace("**","<b>",1).replace("**","</b>",1)
             html += f"• {t}<br><br>"
         html += "</div>"
-    rec = analisis["recomendacion"]
-    while "**" in rec:
-        rec = rec.replace("**", "<b>", 1).replace("**", "</b>", 1)
-    html += (f"<div style='background:#f3e5f5;border-left:4px solid #7b1fa2;"
-             f"border-radius:8px;padding:14px 18px;margin:10px 0'>"
-             f"<b style='color:#7b1fa2;font-size:15px'>🎯 Recomendación prioritaria</b>"
-             f"<br><br>{rec}</div>")
+    rec = a["recomendacion"]
+    while "**" in rec: rec = rec.replace("**","<b>",1).replace("**","</b>",1)
+    html += (f"<div style='background:#f3e5f5;border-left:4px solid #7b1fa2;border-radius:8px;"
+             f"padding:14px 18px;margin:10px 0'>"
+             f"<b style='color:#7b1fa2;font-size:15px'>🎯 Recomendación prioritaria</b><br><br>{rec}</div>")
     return html
 
 
 # ──────────────────────────────────────────────
-# GENERACIÓN DE PDF
+# PDF
 # ──────────────────────────────────────────────
-def generar_pdf(resumen, analisis, df_tabla):
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4,
+def generar_pdf(resumen, analisis, df_top):
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4,
                             rightMargin=2*cm, leftMargin=2*cm,
                             topMargin=2*cm, bottomMargin=2*cm)
-    styles = getSampleStyleSheet()
-    s_tit  = ParagraphStyle('T',  parent=styles['Title'],   fontSize=22,
-                             textColor=colors.HexColor('#1a1a2e'), spaceAfter=4,  alignment=TA_CENTER)
-    s_sub  = ParagraphStyle('S',  parent=styles['Normal'],  fontSize=11,
-                             textColor=colors.HexColor('#4a4a8a'), spaceAfter=18, alignment=TA_CENTER)
-    s_h2   = ParagraphStyle('H2', parent=styles['Heading2'], fontSize=13,
-                             textColor=colors.HexColor('#1a1a2e'), spaceBefore=14, spaceAfter=6)
-    s_body = ParagraphStyle('B',  parent=styles['Normal'],  fontSize=10,
-                             textColor=colors.HexColor('#333333'), spaceAfter=5, leading=15)
-    s_bul  = ParagraphStyle('BU', parent=styles['Normal'],  fontSize=10,
-                             textColor=colors.HexColor('#333333'), spaceAfter=4, leading=14, leftIndent=12)
-    s_foot = ParagraphStyle('F',  parent=styles['Normal'],  fontSize=8,
-                             textColor=colors.HexColor('#999999'), alignment=TA_CENTER)
+    st_ = getSampleStyleSheet()
+    def sty(name, **kw):
+        return ParagraphStyle(name, parent=st_['Normal'], **kw)
 
-    def p(t, style):
-        while "**" in t:
-            t = t.replace("**", "<b>", 1).replace("**", "</b>", 1)
-        try:    return Paragraph(t, style)
-        except: return Paragraph(t.replace("<b>","").replace("</b>",""), style)
+    s_tit  = sty('tit',  fontSize=22, textColor=colors.HexColor('#1a1a2e'), spaceAfter=4,  alignment=TA_CENTER)
+    s_sub  = sty('sub',  fontSize=11, textColor=colors.HexColor('#4a4a8a'), spaceAfter=18, alignment=TA_CENTER)
+    s_h2   = sty('h2',   fontSize=13, textColor=colors.HexColor('#1a1a2e'), spaceBefore=14, spaceAfter=6,
+                 fontName='Helvetica-Bold')
+    s_body = sty('body', fontSize=10, textColor=colors.HexColor('#333333'), spaceAfter=5,  leading=15)
+    s_bul  = sty('bul',  fontSize=10, textColor=colors.HexColor('#333333'), spaceAfter=4,  leading=14, leftIndent=12)
+    s_foot = sty('foot', fontSize=8,  textColor=colors.HexColor('#999999'), alignment=TA_CENTER)
+
+    def p(txt, s):
+        while "**" in txt: txt = txt.replace("**","<b>",1).replace("**","</b>",1)
+        try:    return Paragraph(txt, s)
+        except: return Paragraph(txt.replace("<b>","").replace("</b>",""), s)
 
     h = []
     h.append(p("OptiMarket Pro", s_tit))
@@ -287,106 +225,93 @@ def generar_pdf(resumen, analisis, df_tabla):
 
     # KPIs
     h.append(p("Resumen Ejecutivo", s_h2))
-    kpi_rows = [
-        ["Indicador", "Valor"],
-        ["Total productos analizados", str(resumen.get('total_productos', 0))],
-        ["Volumen total vendido",       f"{resumen.get('volumen_total', 0):,.0f} uds"],
-        ["Ingresos totales",            f"{resumen.get('ingresos_totales', 0):,.2f} EUR"],
-    ]
-    if resumen.get('beneficio_total') is not None:
-        kpi_rows.append(["Beneficio total estimado", f"{resumen['beneficio_total']:,.2f} EUR"])
-    if resumen.get('roi_medio') is not None:
-        kpi_rows.append(["ROI medio del catalogo",   f"{resumen['roi_medio']:.1f}%"])
-    if resumen.get('margen_medio') is not None:
-        kpi_rows.append(["Margen medio",              f"{resumen['margen_medio']:.1f}%"])
-    kpi_rows += [
-        ["Producto lider",              str(resumen.get('lider','N/A'))[:40]],
-        ["Producto menor rendimiento",  str(resumen.get('peor','N/A'))[:40]],
-    ]
-    if resumen.get('mejor_roi_prod'):
-        kpi_rows.append(["Mejor ROI", f"{resumen['mejor_roi_prod']} ({resumen.get('mejor_roi_val',0):.1f}%)"])
+    kpi = [["Indicador","Valor"],
+           ["Productos analizados",        str(resumen.get('n_prods',0))],
+           ["Volumen total",               f"{resumen.get('vol_total',0):,.0f} uds"],
+           ["Ingresos totales",            f"{resumen.get('ingresos',0):,.2f} EUR"]]
+    if resumen.get('benef') is not None:
+        kpi += [["Beneficio total",        f"{resumen['benef']:,.2f} EUR"],
+                ["ROI medio catalogo",     f"{resumen.get('roi_med',0):.1f}%"],
+                ["Margen medio",           f"{resumen.get('marg_med',0):.1f}%"],
+                ["Mejor ROI",              f"{resumen.get('best_roi_prod','N/A')} ({resumen.get('best_roi_val',0):.1f}%)"]]
+    kpi += [["Producto lider",             str(resumen.get('lider','N/A'))[:40]],
+            ["Producto menor rendimiento", str(resumen.get('peor','N/A'))[:40]]]
 
-    tk = Table(kpi_rows, colWidths=[9*cm, 8*cm])
+    tk = Table(kpi, colWidths=[9*cm,8*cm])
     tk.setStyle(TableStyle([
-        ('BACKGROUND',    (0,0),(-1,0), colors.HexColor('#1a1a2e')),
-        ('TEXTCOLOR',     (0,0),(-1,0), colors.white),
-        ('FONTNAME',      (0,0),(-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE',      (0,0),(-1,-1), 10),
-        ('ROWBACKGROUNDS',(0,1),(-1,-1), [colors.HexColor('#f0f2f8'), colors.white]),
-        ('ALIGN',         (1,0),(1,-1), 'RIGHT'),
-        ('GRID',          (0,0),(-1,-1), 0.4, colors.HexColor('#cccccc')),
-        ('ROWHEIGHT',     (0,0),(-1,-1), 20),
-        ('LEFTPADDING',   (0,0),(-1,-1), 8),
-        ('RIGHTPADDING',  (0,0),(-1,-1), 8),
+        ('BACKGROUND',(0,0),(-1,0),colors.HexColor('#1a1a2e')),
+        ('TEXTCOLOR',(0,0),(-1,0),colors.white),
+        ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),
+        ('FONTSIZE',(0,0),(-1,-1),10),
+        ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.HexColor('#f0f2f8'),colors.white]),
+        ('ALIGN',(1,0),(1,-1),'RIGHT'),
+        ('GRID',(0,0),(-1,-1),0.4,colors.HexColor('#cccccc')),
+        ('ROWHEIGHT',(0,0),(-1,-1),20),
+        ('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),
     ]))
     h.append(tk)
-    h.append(Spacer(1, 0.5*cm))
+    h.append(Spacer(1,0.5*cm))
 
     # Top 20
-    h.append(p("Top 20 Productos por Rendimiento", s_h2))
-    if not df_tabla.empty:
-        cols  = ['PROD_AUX','VENT_AUX','DIN_AUX']
-        heads = ['Producto','Unidades','Importe (EUR)']
-        has_coste = 'COST_AUX' in df_tabla.columns
-        if has_coste:
-            cols  += ['BENEFICIO','ROI_AUX','MARGEN_AUX']
-            heads += ['Beneficio','ROI (%)','Margen (%)']
+    h.append(p("Top 20 Productos", s_h2))
+    has_c = 'COST_AUX' in df_top.columns
+    cols  = ['PROD_AUX','VENT_AUX','DIN_AUX']
+    heads = ['Producto','Uds','Ingresos (EUR)']
+    if has_c:
+        cols  += ['COST_AUX','BENEFICIO','ROI_AUX','MARGEN_AUX']
+        heads += ['Coste','Beneficio','ROI%','Margen%']
 
-        filas = [heads]
-        for _, row in df_tabla[cols].head(20).iterrows():
-            f = [str(row['PROD_AUX'])[:30], f"{row['VENT_AUX']:,.0f}", f"{row['DIN_AUX']:,.2f}"]
-            if has_coste:
-                f += [f"{row['BENEFICIO']:,.2f}", f"{row['ROI_AUX']:.1f}%", f"{row['MARGEN_AUX']:.1f}%"]
-            filas.append(f)
+    rows = [heads]
+    for _, r in df_top[cols].head(20).iterrows():
+        f = [str(r['PROD_AUX'])[:28], f"{r['VENT_AUX']:,.0f}", f"{r['DIN_AUX']:,.2f}"]
+        if has_c:
+            f += [f"{r['COST_AUX']:,.2f}", f"{r['BENEFICIO']:,.2f}",
+                  f"{r['ROI_AUX']:.1f}%", f"{r['MARGEN_AUX']:.1f}%"]
+        rows.append(f)
 
-        aw = ([8.5*cm, 2.5*cm, 3.5*cm, 2.5*cm, 2*cm, 2*cm]
-              if has_coste else [9*cm, 3*cm, 5*cm])
-        tp = Table(filas, colWidths=aw)
-        tp.setStyle(TableStyle([
-            ('BACKGROUND',    (0,0),(-1,0), colors.HexColor('#4a4a8a')),
-            ('TEXTCOLOR',     (0,0),(-1,0), colors.white),
-            ('FONTNAME',      (0,0),(-1,0), 'Helvetica-Bold'),
-            ('FONTSIZE',      (0,0),(-1,-1), 8),
-            ('ROWBACKGROUNDS',(0,1),(-1,-1), [colors.HexColor('#f7f7fb'), colors.white]),
-            ('ALIGN',         (1,0),(-1,-1), 'RIGHT'),
-            ('GRID',          (0,0),(-1,-1), 0.3, colors.HexColor('#dddddd')),
-            ('ROWHEIGHT',     (0,0),(-1,-1), 16),
-            ('LEFTPADDING',   (0,0),(-1,-1), 5),
-            ('RIGHTPADDING',  (0,0),(-1,-1), 5),
-            ('BACKGROUND',    (0,1),(-1,1), colors.HexColor('#d4edda')),
-            ('BACKGROUND',    (0,2),(-1,2), colors.HexColor('#e8f5e9')),
-            ('BACKGROUND',    (0,3),(-1,3), colors.HexColor('#f1f8e9')),
-        ]))
-        h.append(tp)
+    aw = ([7*cm,1.8*cm,2.5*cm,2.2*cm,2.2*cm,1.8*cm,1.8*cm]
+          if has_c else [10*cm,3*cm,4.5*cm])
+    tp = Table(rows, colWidths=aw)
+    tp.setStyle(TableStyle([
+        ('BACKGROUND',(0,0),(-1,0),colors.HexColor('#4a4a8a')),
+        ('TEXTCOLOR',(0,0),(-1,0),colors.white),
+        ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),
+        ('FONTSIZE',(0,0),(-1,-1),8),
+        ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.HexColor('#f7f7fb'),colors.white]),
+        ('ALIGN',(1,0),(-1,-1),'RIGHT'),
+        ('GRID',(0,0),(-1,-1),0.3,colors.HexColor('#dddddd')),
+        ('ROWHEIGHT',(0,0),(-1,-1),16),
+        ('LEFTPADDING',(0,0),(-1,-1),4),('RIGHTPADDING',(0,0),(-1,-1),4),
+        ('BACKGROUND',(0,1),(-1,1),colors.HexColor('#d4edda')),
+        ('BACKGROUND',(0,2),(-1,2),colors.HexColor('#e8f5e9')),
+        ('BACKGROUND',(0,3),(-1,3),colors.HexColor('#f1f8e9')),
+    ]))
+    h.append(tp)
+    h.append(Spacer(1,0.5*cm))
+    h.append(HRFlowable(width="100%",thickness=1,color=colors.HexColor('#cccccc')))
+    h.append(Spacer(1,0.2*cm))
+    h.append(p("Analisis Estrategico", s_h2))
 
-    h.append(Spacer(1, 0.5*cm))
-    h.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#cccccc')))
-    h.append(Spacer(1, 0.2*cm))
-    h.append(p("Analisis Estrategico Automatico", s_h2))
-
-    for titulo_sec, items in [
-        ("Diagnostico rapido",       analisis["diagnostico"]),
-        ("Oportunidades detectadas", analisis["oportunidades"]),
-        ("Alertas",                  analisis["alertas"]),
-    ]:
-        h.append(p(f"<b>{titulo_sec}</b>", s_body))
-        for item in items: h.append(p(f"• {item}", s_bul))
-        h.append(Spacer(1, 0.2*cm))
+    for sec, items in [("Diagnostico",analisis["diagnostico"]),
+                       ("Oportunidades",analisis["oportunidades"]),
+                       ("Alertas",analisis["alertas"])]:
+        h.append(p(f"<b>{sec}</b>", s_body))
+        for it in items: h.append(p(f"• {it}", s_bul))
+        h.append(Spacer(1,0.2*cm))
 
     h.append(p("<b>Recomendacion prioritaria</b>", s_body))
     h.append(p(analisis["recomendacion"], s_bul))
-    h.append(Spacer(1, 0.8*cm))
-    h.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#cccccc')))
-    h.append(Spacer(1, 0.2*cm))
-    h.append(p("Informe generado por OptiMarket Pro · Analisis automatico sin dependencias externas", s_foot))
-
+    h.append(Spacer(1,0.8*cm))
+    h.append(HRFlowable(width="100%",thickness=1,color=colors.HexColor('#cccccc')))
+    h.append(Spacer(1,0.2*cm))
+    h.append(p("OptiMarket Pro · Analisis automatico sin dependencias externas", s_foot))
     doc.build(h)
-    buffer.seek(0)
-    return buffer.getvalue()
+    buf.seek(0)
+    return buf.getvalue()
 
 
 # ──────────────────────────────────────────────
-# APP PRINCIPAL
+# APP
 # ──────────────────────────────────────────────
 if "auth" not in st.session_state:
     st.session_state.auth = False
@@ -403,9 +328,11 @@ if not st.session_state.auth:
 else:
     st.markdown("<style>.stMetric{background:#f0f2f8;border-radius:10px;padding:10px}</style>",
                 unsafe_allow_html=True)
-    st.title("📊 OptiMarket Pro — Análisis Estratégico")
+    st.title("📊 OptiMarket Pro")
 
-    archivo = st.sidebar.file_uploader("📁 1. Sube tu Excel o CSV", type=["xlsx","csv","xls"])
+    # ── SIDEBAR MINIMALISTA ──
+    st.sidebar.title("⚙️ Configuración")
+    archivo = st.sidebar.file_uploader("Sube tu Excel o CSV", type=["xlsx","csv","xls"])
 
     if archivo:
         try:
@@ -413,142 +340,136 @@ else:
                   if archivo.name.lower().endswith('.csv')
                   else pd.read_excel(archivo))
             df.columns = [str(c).strip().upper() for c in df.columns]
+            lc = list(df.columns)
+
+            # Detección automática
+            d_prod  = detectar(df.columns,"producto")
+            d_cant  = detectar(df.columns,"cantidad")
+            d_imp   = detectar(df.columns,"importe")
+            d_coste = detectar(df.columns,"coste")
+            d_tiend = detectar(df.columns,"tienda")
 
             st.sidebar.divider()
-            st.sidebar.subheader("⚙️ 2. Configuración de Columnas")
 
-            col_prod_auto   = detectar_columna(df.columns, "producto")
-            col_vent_auto   = detectar_columna(df.columns, "cantidad")
-            col_dinero_auto = detectar_columna(df.columns, "importe") or detectar_columna(df.columns, "precio")
-            col_coste_auto  = detectar_columna(df.columns, "coste")
-            col_tienda_auto = detectar_columna(df.columns, "tienda")
-
-            with st.sidebar.expander("🔍 Columnas detectadas"):
-                for n, v in [("Producto",col_prod_auto),("Cantidad",col_vent_auto),
-                              ("Importe",col_dinero_auto),("Coste",col_coste_auto),
-                              ("Tienda",col_tienda_auto)]:
-                    st.write(f"{'✅' if v else '❌'} **{n}:** {v or 'No detectado'}")
-
-            lc  = list(df.columns)
+            # ── 4 selectores básicos ──
             idx = lambda c: lc.index(c) if c and c in lc else 0
 
-            col_prod = st.sidebar.selectbox("Columna Producto/Fabricante", lc, index=idx(col_prod_auto))
-            col_vent = st.sidebar.selectbox("Columna Cantidad Vendida",    lc, index=idx(col_vent_auto))
+            col_prod  = st.sidebar.selectbox("🏷️ Producto",  lc, index=idx(d_prod))
+            col_cant  = st.sidebar.selectbox("📦 Cantidad",  lc, index=idx(d_cant))
+            col_imp   = st.sidebar.selectbox("💶 Importe",   lc, index=idx(d_imp))
+            opc_c     = ["— Sin coste —"] + lc
+            col_c_sel = st.sidebar.selectbox("💰 Coste",     opc_c,
+                            index=opc_c.index(d_coste) if d_coste in opc_c else 0)
+            col_coste = col_c_sel if col_c_sel != "— Sin coste —" else None
 
-            opc_din = ["— Sin importe —"] + lc
-            col_din_sel = st.sidebar.selectbox("Columna Importe/Ingresos", opc_din,
-                index=opc_din.index(col_dinero_auto) if col_dinero_auto in opc_din else 0)
-            col_dinero = col_din_sel if col_din_sel != "— Sin importe —" else None
+            # Filtro tienda (solo si existe)
+            tienda = "TODAS"
+            if d_tiend:
+                st.sidebar.divider()
+                ops   = ["TODAS"] + sorted(df[d_tiend].dropna().unique().tolist())
+                tienda = st.sidebar.selectbox("📍 Tienda", ops)
 
-            opc_cost = ["— Sin coste —"] + lc
-            col_cost_sel = st.sidebar.selectbox("Columna Coste (para ROI y margen)", opc_cost,
-                index=opc_cost.index(col_coste_auto) if col_coste_auto in opc_cost else 0)
-            col_coste = col_cost_sel if col_cost_sel != "— Sin coste —" else None
-
-            tienda_seleccionada = "TODAS"
-            if col_tienda_auto:
-                ops = ["TODAS"] + sorted(df[col_tienda_auto].dropna().unique().tolist())
-                tienda_seleccionada = st.sidebar.selectbox("📍 Seleccionar Tienda:", ops)
+            # Estado detección (colapsado)
+            with st.sidebar.expander("🔍 Ver detección automática"):
+                for n,v in [("Producto",d_prod),("Cantidad",d_cant),
+                             ("Importe",d_imp),("Coste",d_coste),("Tienda",d_tiend)]:
+                    st.write(f"{'✅' if v else '❌'} **{n}:** {v or 'No detectado'}")
 
             # ── PROCESAMIENTO ──
             df_f = df.copy()
-            if col_tienda_auto and tienda_seleccionada != "TODAS":
-                df_f = df_f[df_f[col_tienda_auto] == tienda_seleccionada]
+            if d_tiend and tienda != "TODAS":
+                df_f = df_f[df_f[d_tiend] == tienda]
 
             df_f['PROD_AUX'] = df_f[col_prod].astype(str)
-            df_f['VENT_AUX'] = pd.to_numeric(df_f[col_vent],    errors='coerce').fillna(0)
-            df_f['DIN_AUX']  = (pd.to_numeric(df_f[col_dinero], errors='coerce').fillna(0)
-                                if col_dinero else df_f['VENT_AUX'])
+            df_f['VENT_AUX'] = pd.to_numeric(df_f[col_cant], errors='coerce').fillna(0)
+            df_f['DIN_AUX']  = pd.to_numeric(df_f[col_imp],  errors='coerce').fillna(0)
             if col_coste:
                 df_f['COST_AUX'] = pd.to_numeric(df_f[col_coste], errors='coerce').fillna(0)
 
             agg = {'VENT_AUX':'sum','DIN_AUX':'sum'}
             if col_coste: agg['COST_AUX'] = 'sum'
-            res = df_f.groupby('PROD_AUX').agg(agg).reset_index()
-            res = calcular_metricas(res)
-
+            res        = calcular_metricas(df_f.groupby('PROD_AUX').agg(agg).reset_index())
             res_sorted = res.sort_values('DIN_AUX', ascending=False)
             top20      = res_sorted.head(20).copy()
             bottom5    = res_sorted.tail(5).copy()
-            tiene_coste = col_coste and 'COST_AUX' in res.columns
+            tiene_c    = col_coste and 'COST_AUX' in res.columns
 
-            if not top20.empty:
+            if top20.empty:
+                st.warning("No hay datos para esta selección.")
+            else:
+                st.subheader(f"📍 {tienda}")
+
                 # ── KPIs ──
-                st.subheader(f"📍 Resultados: {tienda_seleccionada}")
-
-                if tiene_coste:
-                    c1,c2,c3,c4,c5,c6 = st.columns(6)
+                if tiene_c:
+                    k1,k2,k3,k4,k5,k6 = st.columns(6)
                 else:
-                    c1,c2,c3,c4 = st.columns(4)
+                    k1,k2,k3,k4 = st.columns(4)
 
-                with c1: st.metric("📦 VOLUMEN",        f"{res['VENT_AUX'].sum():,.0f} uds")
-                with c2: st.metric("💶 INGRESOS",       f"{res['DIN_AUX'].sum():,.2f} €"
-                                    if col_dinero else f"{res['DIN_AUX'].sum():,.0f}")
-                with c3: st.metric("🏆 LÍDER",          str(top20.iloc[0]['PROD_AUX'])[:16])
-                with c4: st.metric("⚠️ MENOR REND.",    str(bottom5.iloc[0]['PROD_AUX'])[:16])
-                if tiene_coste:
-                    benef_total = res['BENEFICIO'].sum()
-                    roi_medio   = res['ROI_AUX'].mean()
-                    with c5: st.metric("💰 BENEFICIO",  f"{benef_total:,.2f} €",
-                                       delta=f"{'↑' if benef_total>0 else '↓'}")
-                    with c6: st.metric("📈 ROI MEDIO",  f"{roi_medio:.1f}%",
-                                       delta=f"{'Bueno' if roi_medio>20 else 'Revisar'}")
+                with k1: st.metric("📦 Unidades",    f"{res['VENT_AUX'].sum():,.0f}")
+                with k2: st.metric("💶 Ingresos",    f"{res['DIN_AUX'].sum():,.2f} €")
+                with k3: st.metric("🏆 Líder",       str(top20.iloc[0]['PROD_AUX'])[:16])
+                with k4: st.metric("⚠️ Menor rend.", str(bottom5.iloc[0]['PROD_AUX'])[:16])
+                if tiene_c:
+                    benef = res['BENEFICIO'].sum()
+                    roi_m = res['ROI_AUX'].mean()
+                    with k5:
+                        st.metric("💰 Beneficio", f"{benef:,.2f} €",
+                                  delta=f"{'positivo' if benef>0 else 'negativo'}")
+                    with k6:
+                        st.metric("📈 ROI medio", f"{roi_m:.1f}%",
+                                  delta=f"{'✓ bueno' if roi_m>20 else '↓ revisar'}")
 
                 st.divider()
 
-                # ── GRÁFICAS PRINCIPALES ──
-                cg1, cg2 = st.columns([2,1])
-                with cg1:
-                    st.subheader(f"📈 Top 20 por {col_prod}")
+                # ── GRÁFICAS ──
+                g1, g2 = st.columns([2,1])
+                with g1:
+                    st.subheader("📈 Top 20 — Ingresos")
                     fig = px.bar(top20, x='PROD_AUX', y='DIN_AUX', color='DIN_AUX',
                                  color_continuous_scale='Blues', text_auto='.2s',
                                  labels={'PROD_AUX': col_prod, 'DIN_AUX': 'Ingresos (€)'})
-                    fig.update_layout(xaxis_tickangle=-45, showlegend=False)
+                    fig.update_layout(xaxis_tickangle=-45, showlegend=False,
+                                      xaxis_title="", coloraxis_showscale=False)
                     st.plotly_chart(fig, use_container_width=True)
-                with cg2:
-                    st.subheader("🔴 Peores 5 productos")
+                with g2:
+                    st.subheader("🔴 Peores 5")
                     fig2 = px.bar(bottom5.sort_values('DIN_AUX'), x='DIN_AUX', y='PROD_AUX',
                                   orientation='h', color='DIN_AUX', color_continuous_scale='Reds_r',
-                                  labels={'PROD_AUX':'','DIN_AUX':'Ingresos'})
-                    fig2.update_layout(showlegend=False)
+                                  labels={'PROD_AUX':'','DIN_AUX':'Ingresos (€)'})
+                    fig2.update_layout(showlegend=False, coloraxis_showscale=False)
                     st.plotly_chart(fig2, use_container_width=True)
 
-                # ── GRÁFICAS ROI ──
-                if tiene_coste:
-                    st.divider()
+                if tiene_c:
                     r1, r2, r3 = st.columns(3)
 
                     with r1:
-                        st.subheader("📈 ROI por producto (Top 20)")
-                        roi_sorted = top20.sort_values('ROI_AUX', ascending=False)
-                        colores_roi = ['#d32f2f' if v < 0 else '#f57c00' if v < 15
-                                       else '#388e3c' for v in roi_sorted['ROI_AUX']]
-                        fig_roi = go.Figure(go.Bar(
-                            x=roi_sorted['PROD_AUX'], y=roi_sorted['ROI_AUX'],
-                            marker_color=colores_roi,
-                            text=[f"{v:.1f}%" for v in roi_sorted['ROI_AUX']],
-                            textposition='outside'
-                        ))
-                        fig_roi.update_layout(xaxis_tickangle=-45, showlegend=False,
-                                              yaxis_title="ROI (%)",
-                                              shapes=[dict(type='line', x0=-0.5,
-                                                           x1=len(roi_sorted)-0.5,
-                                                           y0=0, y1=0,
-                                                           line=dict(color='black',width=1))])
-                        st.plotly_chart(fig_roi, use_container_width=True)
+                        st.subheader("📊 ROI por producto")
+                        rs = top20.sort_values('ROI_AUX', ascending=False)
+                        clr = ['#d32f2f' if v<0 else '#f57c00' if v<15 else '#388e3c'
+                               for v in rs['ROI_AUX']]
+                        fig_r = go.Figure(go.Bar(
+                            x=rs['PROD_AUX'], y=rs['ROI_AUX'],
+                            marker_color=clr,
+                            text=[f"{v:.1f}%" for v in rs['ROI_AUX']],
+                            textposition='outside'))
+                        fig_r.update_layout(
+                            xaxis_tickangle=-45, yaxis_title="ROI (%)",
+                            shapes=[dict(type='line',x0=-0.5,x1=len(rs)-0.5,
+                                        y0=0,y1=0,line=dict(color='black',width=1))])
+                        st.plotly_chart(fig_r, use_container_width=True)
 
                     with r2:
-                        st.subheader("💹 Margen por producto (Top 20)")
-                        marg_sorted = top20.sort_values('MARGEN_AUX', ascending=False)
-                        fig3 = px.bar(marg_sorted, x='PROD_AUX', y='MARGEN_AUX',
+                        st.subheader("💹 Margen por producto")
+                        ms = top20.sort_values('MARGEN_AUX', ascending=False)
+                        fig3 = px.bar(ms, x='PROD_AUX', y='MARGEN_AUX',
                                       color='MARGEN_AUX', color_continuous_scale='RdYlGn',
                                       text_auto='.1f',
-                                      labels={'PROD_AUX': col_prod, 'MARGEN_AUX': 'Margen (%)'})
-                        fig3.update_layout(xaxis_tickangle=-45)
+                                      labels={'PROD_AUX':col_prod,'MARGEN_AUX':'Margen (%)'})
+                        fig3.update_layout(xaxis_tickangle=-45, coloraxis_showscale=False)
                         st.plotly_chart(fig3, use_container_width=True)
 
                     with r3:
-                        st.subheader("🔵 Ingresos vs Beneficio (Top 20)")
+                        st.subheader("🔵 Ingresos vs Beneficio")
                         fig4 = px.scatter(top20, x='DIN_AUX', y='BENEFICIO',
                                           size='VENT_AUX', color='ROI_AUX',
                                           color_continuous_scale='RdYlGn',
@@ -559,12 +480,13 @@ else:
                         fig4.add_hline(y=0, line_dash="dash", line_color="red", opacity=0.5)
                         st.plotly_chart(fig4, use_container_width=True)
 
-                    # Cuadrante ROI vs Volumen
+                    # Mapa estratégico
                     st.subheader("🗺️ Mapa de Rentabilidad Estratégica")
-                    st.caption("Tamaño = ingresos | Color = ROI | Cuadrante ideal: arriba a la derecha")
-                    roi_med = res['ROI_AUX'].median()
-                    vol_med = res['VENT_AUX'].median()
-                    fig5 = px.scatter(res_sorted.head(30), x='VENT_AUX', y='ROI_AUX',
+                    st.caption("Tamaño = ingresos · Color = ROI · Ideal: arriba a la derecha")
+                    roi_med = float(res['ROI_AUX'].median())
+                    vol_med = float(res['VENT_AUX'].median())
+                    plot_df = res_sorted.head(30)
+                    fig5 = px.scatter(plot_df, x='VENT_AUX', y='ROI_AUX',
                                       size='DIN_AUX', color='ROI_AUX',
                                       color_continuous_scale='RdYlGn',
                                       hover_name='PROD_AUX',
@@ -574,79 +496,69 @@ else:
                     fig5.add_vline(x=vol_med, line_dash="dot", line_color="gray", opacity=0.5)
                     fig5.add_hline(y=roi_med, line_dash="dot", line_color="gray", opacity=0.5)
                     fig5.add_hline(y=0,       line_dash="dash", line_color="red",  opacity=0.4)
-                    # Etiquetas de cuadrantes
-                    fig5.add_annotation(x=res_sorted['VENT_AUX'].max()*0.85, y=res_sorted['ROI_AUX'].max()*0.9,
+                    x_max = float(plot_df['VENT_AUX'].max())
+                    y_max = float(plot_df['ROI_AUX'].max())
+                    fig5.add_annotation(x=x_max*0.85, y=y_max*0.9,
                                         text="⭐ Estrellas", showarrow=False,
-                                        font=dict(color="#2e7d32", size=11))
-                    fig5.add_annotation(x=res_sorted['VENT_AUX'].max()*0.85, y=roi_med*0.1,
+                                        font=dict(color="#2e7d32",size=11))
+                    fig5.add_annotation(x=x_max*0.85, y=roi_med*0.2,
                                         text="⚠️ Volumen sin margen", showarrow=False,
-                                        font=dict(color="#e65100", size=11))
+                                        font=dict(color="#e65100",size=11))
                     st.plotly_chart(fig5, use_container_width=True)
 
                 # ── ANÁLISIS AUTOMÁTICO ──
                 st.divider()
-                st.subheader("🤖 Análisis Estratégico Automático")
+                st.subheader("🤖 Análisis Estratégico")
 
                 if st.button("✨ Generar análisis", type="primary"):
-                    analisis = analizar_automatico(
-                        res_sorted.copy(), tienda_seleccionada,
-                        tiene_dinero=bool(col_dinero),
-                        tiene_coste=bool(tiene_coste)
-                    )
-                    resumen = {
-                        "tienda":           tienda_seleccionada,
-                        "total_productos":  len(res),
-                        "volumen_total":    float(res['VENT_AUX'].sum()),
-                        "ingresos_totales": float(res['DIN_AUX'].sum()),
-                        "lider":            str(top20.iloc[0]['PROD_AUX']),
-                        "peor":             str(bottom5.iloc[0]['PROD_AUX']),
+                    an = analizar(res_sorted.copy(), tienda, tiene_c)
+                    rsm = {
+                        "tienda":   tienda,
+                        "n_prods":  len(res),
+                        "vol_total":float(res['VENT_AUX'].sum()),
+                        "ingresos": float(res['DIN_AUX'].sum()),
+                        "lider":    str(top20.iloc[0]['PROD_AUX']),
+                        "peor":     str(bottom5.iloc[0]['PROD_AUX']),
                     }
-                    if tiene_coste:
-                        resumen['beneficio_total'] = float(res['BENEFICIO'].sum())
-                        resumen['roi_medio']       = float(res['ROI_AUX'].mean())
-                        resumen['margen_medio']    = float(res['MARGEN_AUX'].mean())
-                        mejor_roi_row = res.sort_values('ROI_AUX', ascending=False).iloc[0]
-                        resumen['mejor_roi_prod']  = str(mejor_roi_row['PROD_AUX'])
-                        resumen['mejor_roi_val']   = float(mejor_roi_row['ROI_AUX'])
+                    if tiene_c:
+                        br = res.sort_values('ROI_AUX', ascending=False).iloc[0]
+                        rsm.update({
+                            "benef":         float(res['BENEFICIO'].sum()),
+                            "roi_med":       float(res['ROI_AUX'].mean()),
+                            "marg_med":      float(res['MARGEN_AUX'].mean()),
+                            "best_roi_prod": str(br['PROD_AUX']),
+                            "best_roi_val":  float(br['ROI_AUX']),
+                        })
+                    st.session_state.update({'an':an,'rsm':rsm,'top20':top20.copy()})
 
-                    st.session_state['analisis']      = analisis
-                    st.session_state['resumen_datos'] = resumen
-                    st.session_state['df_top20']      = top20.copy()
-
-                if 'analisis' in st.session_state:
-                    st.markdown(formatear_html(st.session_state['analisis']), unsafe_allow_html=True)
+                if 'an' in st.session_state:
+                    st.markdown(html_analisis(st.session_state['an']), unsafe_allow_html=True)
 
                     st.divider()
-                    st.subheader("📄 Exportar Informe")
-                    if st.button("📥 Generar PDF profesional", type="secondary"):
+                    st.subheader("📄 Exportar Informe PDF")
+                    if st.button("📥 Generar PDF", type="secondary"):
                         with st.spinner("Generando PDF..."):
-                            pdf_bytes = generar_pdf(
-                                st.session_state['resumen_datos'],
-                                st.session_state['analisis'],
-                                st.session_state['df_top20']
-                            )
-                        nombre = f"OptiMarket_{tienda_seleccionada}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
-                        st.download_button("⬇️ Descargar informe PDF", pdf_bytes,
-                                           nombre, "application/pdf", type="primary")
+                            pdf = generar_pdf(st.session_state['rsm'],
+                                              st.session_state['an'],
+                                              st.session_state['top20'])
+                        nombre = f"OptiMarket_{tienda}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+                        st.download_button("⬇️ Descargar PDF", pdf, nombre,
+                                           "application/pdf", type="primary")
 
-                # Tabla detalle
-                with st.expander("🗂️ Ver tabla completa"):
+                # Tabla completa
+                with st.expander("🗂️ Tabla completa de datos"):
                     cs = ['PROD_AUX','VENT_AUX','DIN_AUX']
-                    rn = {'PROD_AUX': col_prod, 'VENT_AUX': 'Unidades', 'DIN_AUX': 'Importe (€)'}
-                    if tiene_coste:
+                    rn = {'PROD_AUX':col_prod,'VENT_AUX':'Unidades','DIN_AUX':'Ingresos (€)'}
+                    if tiene_c:
                         cs += ['COST_AUX','BENEFICIO','ROI_AUX','MARGEN_AUX','TICKET_AUX']
                         rn.update({'COST_AUX':'Coste (€)','BENEFICIO':'Beneficio (€)',
                                    'ROI_AUX':'ROI (%)','MARGEN_AUX':'Margen (%)','TICKET_AUX':'Ticket (€)'})
                     else:
-                        cs.append('TICKET_AUX')
-                        rn['TICKET_AUX'] = 'Ticket (€)'
+                        cs.append('TICKET_AUX'); rn['TICKET_AUX'] = 'Ticket (€)'
                     st.dataframe(res_sorted[cs].rename(columns=rn), use_container_width=True)
 
-            else:
-                st.warning("No hay datos para esta selección.")
-
         except Exception as e:
-            st.error(f"Error al procesar el archivo: {e}")
+            st.error(f"Error: {e}")
             st.exception(e)
     else:
-        st.info("📁 Por favor, sube un archivo Excel o CSV para empezar el análisis.")
+        st.info("📁 Sube un archivo Excel o CSV para empezar.")
