@@ -5,13 +5,12 @@ from fpdf import FPDF
 import datetime
 
 # =========================================================
-# 🛠️ SECCIÓN DE CONFIGURACIÓN: CAMBIA SOLO ESTO SEGÚN TU EXCEL
+# 🛠️ SECCIÓN DE CONFIGURACIÓN PARA: RESUMEN-TEMPORADA-ART.xlsx
 # =========================================================
-# Pon aquí el nombre exacto de las columnas que tiene tu archivo actual:
-COL_PRODUCTO = "REFERENC."    # O "Fabricante", o "Modelo"
-COL_PRECIO   = "PRECIO"       # Si no existe en el Excel, el código pondrá 0 o puedes calcularlo
-COL_COSTE    = "COSTE"        # Si no existe, lo mismo
-COL_VENTAS   = "VENDIDO"      # O "Cantidad", o "Unidades"
+COL_PRODUCTO = "REFERENC."    # Es la columna que identifica el artículo
+COL_PRECIO   = "PRECIO"       # Tu Excel NO tiene esta columna, el código la creará a 0
+COL_COSTE    = "COSTE"        # Tu Excel NO tiene esta columna, el código la creará a 0
+COL_VENTAS   = "VENDIDO"      # Es la columna con las unidades vendidas
 # =========================================================
 
 st.set_page_config(page_title="OptiMarket Pro | Multi-Empresa", page_icon="🚀", layout="wide")
