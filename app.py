@@ -5,147 +5,142 @@ from fpdf import FPDF
 import datetime
 
 # =========================================================
-# 🛠️ CONFIGURACIÓN DE COLUMNAS (Cambia esto según tu Excel)
+# 🛠️ CAPA DE PERSONALIZACIÓN (Añade aquí palabras nuevas si fallan)
 # =========================================================
-# Pon aquí el nombre exacto de las columnas de tu archivo Excel:
-COL_TIENDAS = "Tienda"
-COL_PRODUCTO = "Fabricante"    # Ej: "Fabricante", "Modelo", "Referencia"
-COL_MODELO = "Modelo" 
-COL_PRECIO   = "Precio"       # Ej: "Importe", "PVP", "Venta"
-COL_COSTE    = "Coste"        # Ej: "Coste", "Costo", "Compra"
-COL_VENTAS   = "Venta"      # Ej: "Cantidad", "Unidades", "Vendido"
+# El código buscará estas palabras en los títulos de tu Excel
+SINONIMOS_PRODUCTO = ['FABRICANTE', 'PRODUCTO', 'REFERENC.', 'MODELO', 'ARTICULO']
+SINONIMOS_VENTAS   = ['CANTIDAD', 'VENDIDO', 'UNIDADES', 'VENTAS', 'CANT']
+SINONIMOS_COSTE    = ['COSTE', 'COSTO', 'COMPRA', 'PRECIO_COMPRA']
+SINONIMOS_PRECIO   = ['PRECIO', 'IMPORTE', 'VENTA', 'PVP', 'VALOR']
 # =========================================================
 
-st.set_page_config(page_title="OptiMarket Pro | Intelligence", page_icon="🚀", layout="wide")
+st.set_page_config(page_title="OptiMarket Pro | Business Intelligence", layout="wide")
 
-# --- BLOQUE DE SEGURIDAD ---
-if "auth" not in st.session_state:
-    st.session_state.auth = False
-
+# --- SEGURIDAD ---
+if "auth" not in st.session_state: st.session_state.auth = False
 if not st.session_state.auth:
-    st.title("🔐 Acceso Privado")
-    clave = st.text_input("Introduce la contraseña:", type="password")
+    st.title("🔐 Acceso Inteligencia de Negocio")
+    clave = st.text_input("Contraseña Maestro:", type="password")
     if st.button("Entrar"):
         if clave == "SOCIO2024":
             st.session_state.auth = True
             st.rerun()
-        else:
-            st.error("Clave incorrecta")
+        else: st.error("Acceso Denegado")
 else:
-    # --- DISEÑO Y ESTILOS ---
+    # Estilos Profesionales
     st.markdown("""
         <style>
-        .report-card { background-color: #ffffff; padding: 25px; border-radius: 12px; border-left: 6px solid #0047AB; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); color: #1e1e1e; }
-        .stMetric { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e0e6ed; }
-        h4 { color: #0047AB; margin-top: 0; margin-bottom: 10px; }
+        .report-card { background-color: #ffffff; padding: 20px; border-radius: 12px; border-left: 6px solid #0047AB; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); color: #1e1e1e; }
+        .stMetric { background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 10px; }
+        h4 { color: #0047AB; margin: 0; }
         </style>
         """, unsafe_allow_html=True)
 
-    # --- FUNCIÓN PDF ---
-    def generar_pdf_pro(df, total, roi_medio):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("helvetica", 'B', 20)
-        pdf.set_text_color(0, 71, 171)
-        pdf.cell(0, 15, "OPTIMARKET PRO - INFORME", ln=True, align='C')
-        pdf.ln(10)
-        
-        pdf.set_font("helvetica", 'B', 12)
-        pdf.set_text_color(0, 0, 0)
-        pdf.cell(0, 10, f"Beneficio Total: {total:,.2f} EUR", ln=True)
-        pdf.cell(0, 10, f"ROI Promedio: {roi_medio:.1f}%", ln=True)
-        pdf.ln(5)
-        
-        # Tabla
-        pdf.set_fill_color(230, 230, 230)
-        pdf.cell(90, 10, " Producto", 1, 0, 'L', True)
-        pdf.cell(50, 10, " Beneficio", 1, 0, 'C', True)
-        pdf.cell(40, 10, " ROI %", 1, 1, 'C', True)
-        
-        pdf.set_font("helvetica", '', 10)
-        for i, row in df.head(20).iterrows():
-            pdf.cell(90, 9, f" {str(row['Producto'])[:35]}", 1)
-            pdf.cell(50, 9, f" {row['Rentabilidad_Total']:,.2f}", 1, 0, 'R')
-            pdf.cell(40, 9, f" {row['ROI_Porcentaje']:.1f}%", 1, 1, 'R')
-        return pdf.output()
-
-    # --- INTERFAZ ---
-    st.title("🚀 OptiMarket Pro")
-    archivo = st.sidebar.file_uploader("📂 Cargar Excel", type=["xlsx"])
+    st.title("📊 OptiMarket Pro: Consultoría de Ventas")
+    archivo = st.sidebar.file_uploader("📂 Sube tu archivo (Excel/CSV)", type=["xlsx", "csv"])
 
     if archivo:
         try:
-            # Saltamos la primera fila si el excel tiene basura arriba (skiprows=1)
-            # Si tu excel es limpio, puedes quitar el skiprows=1
-            df = pd.read_excel(archivo, skiprows=1)
-            df.columns = [str(c).strip() for c in df.columns]
+            # 1. CARGA INTELIGENTE
+            # Probamos lectura normal. Si falla, es que tiene filas vacías arriba.
+            df_test = pd.read_excel(archivo) if archivo.name.endswith('xlsx') else pd.read_csv(archivo)
+            
+            # Si hay muchos nombres raros o vacíos, saltamos la primera fila
+            if df_test.columns.str.contains('Unnamed').sum() > (len(df_test.columns) / 2):
+                df = pd.read_excel(archivo, skiprows=1)
+            else:
+                df = df_test
 
-            # Mapeo de columnas según configuración
-            df = df.rename(columns={
-                COL_PRODUCTO: 'Producto',
-                COL_PRECIO: 'Precio_Venta',
-                COL_COSTE: 'Coste_Unidad',
-                COL_VENTAS: 'Ventas_Unidades'
-            })
+            # 2. UNIFICACIÓN DE NOMBRES (Mayúsculas y Limpios)
+            df.columns = [str(c).strip().upper() for c in df.columns]
 
-            # Verificar si las columnas existen tras el renombre
-            columnas_finales = ['Producto', 'Ventas_Unidades']
-            if all(c in df.columns for c in columnas_finales):
+            # 3. BUSCADOR SEMÁNTICO (Mapeo automático)
+            mapeo = {}
+            for col in df.columns:
+                if any(x in col for x in SINONIMOS_PRODUCTO): mapeo[col] = 'Producto_Final'
+                elif any(x in col for x in SINONIMOS_VENTAS): mapeo[col] = 'Ventas_Final'
+                elif any(x in col for x in SINONIMOS_COSTE): mapeo[col] = 'Coste_Final'
+                elif any(x in col for x in SINONIMOS_PRECIO): mapeo[col] = 'Precio_Final'
+
+            df = df.rename(columns=mapeo)
+
+            # 4. PROCESAMIENTO DE DATOS
+            cols_vitales = ['Producto_Final', 'Ventas_Final']
+            if all(c in df.columns for c in cols_vitales):
                 
-                # Convertir a números (por si hay basura en el Excel)
-                for c in ['Precio_Venta', 'Coste_Unidad', 'Ventas_Unidades']:
+                # Convertir a números y limpiar basura
+                for c in ['Ventas_Final', 'Coste_Final', 'Precio_Final']:
                     if c in df.columns:
                         df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
-                    else:
-                        df[c] = 0 # Si no hay precio/coste, creamos la columna a 0
+                
+                # Cálculos de Rentabilidad (Si el Excel tiene dinero)
+                if 'Precio_Final' in df.columns and 'Coste_Final' in df.columns:
+                    # Usamos Precio_Final si es el unitario, o Importe si es el total. 
+                    # Aquí calculamos margen unitario si podemos
+                    df['Margen_Unitario'] = df['Precio_Final'] - df['Coste_Final']
+                    df['Beneficio_Total'] = df['Margen_Unitario'] * df['Ventas_Final']
+                    df['ROI'] = df.apply(lambda x: (x['Margen_Unitario']/x['Coste_Final']*100) if x['Coste_Final'] > 0 else 0, axis=1)
+                else:
+                    df['Beneficio_Total'] = df['Ventas_Final'] # Fallback a unidades
+                    df['ROI'] = 0
 
-                # Cálculos
-                df['Margen'] = df['Precio_Venta'] - df['Coste_Unidad']
-                df['Rentabilidad_Total'] = df['Margen'] * df['Ventas_Unidades']
-                df['ROI_Porcentaje'] = df.apply(lambda x: (x['Margen']/x['Coste_Unidad']*100) if x['Coste_Unidad']>0 else 0, axis=1)
+                # AGRUPAR POR FABRICANTE/PRODUCTO
+                res = df.groupby('Producto_Final').agg({
+                    'Ventas_Final': 'sum',
+                    'Beneficio_Total': 'sum',
+                    'ROI': 'mean'
+                }).reset_index().sort_values('Beneficio_Total', ascending=False)
 
-                # Agrupación para limpiar el gráfico
-                resumen = df.groupby('Producto').agg({
-                    'Ventas_Unidades': 'sum',
-                    'Rentabilidad_Total': 'sum',
-                    'ROI_Porcentaje': 'mean'
-                }).reset_index().sort_values('Rentabilidad_Total', ascending=False)
+                # --- DASHBOARD DE CONTROL ---
+                st.subheader("📍 Indicadores Clave de Desempeño (KPIs)")
+                k1, k2, k3, k4 = st.columns(4)
+                
+                total_v = res['Ventas_Final'].sum()
+                total_b = res['Beneficio_Total'].sum()
+                top_p = res.iloc[0]
+                roi_m = res['ROI'].mean()
 
-                # KPIs
-                total_n = resumen['Rentabilidad_Total'].sum()
-                roi_m = resumen['ROI_Porcentaje'].mean()
-                estrella = resumen.iloc[0]
-                eficiente = resumen.sort_values('ROI_Porcentaje', ascending=False).iloc[0]
-                bajo = resumen.sort_values('ROI_Porcentaje', ascending=True).iloc[0]
+                k1.metric("VENTAS TOTALES", f"{total_v:,.0f} uds")
+                k2.metric("BENEFICIO NETO", f"{total_b:,.2f} €")
+                k3.metric("LÍDER", str(top_p['Producto_Final'])[:15])
+                k4.metric("ROI MEDIO", f"{roi_m:.1f} %")
 
-                c1, c2, c3 = st.columns(3)
-                c1.metric("BENEFICIO NETO", f"{total_n:,.2f} €")
-                c2.metric("ACTIVO ESTRELLA", str(estrella['Producto'])[:15])
-                c3.metric("ROI PROMEDIO", f"{roi_m:.1f} %")
-
-                # Gráfica
-                st.subheader("📊 Mapa de Rentabilidad")
-                fig = px.bar(resumen.head(15), x='Producto', y='Rentabilidad_Total', color='Rentabilidad_Total',
-                             color_continuous_scale='Blues')
+                # --- GRÁFICA PROFESIONAL ---
+                st.divider()
+                st.subheader("📊 Análisis Comparativo de Fabricantes")
+                # Gráfica de burbujas o barras
+                fig = px.bar(res.head(15), x='Producto_Final', y='Beneficio_Total',
+                             color='ROI', color_continuous_scale='RdYlGn',
+                             hover_data=['Ventas_Final'],
+                             labels={'Producto_Final': 'Fabricante', 'Beneficio_Total': 'Ganancia (€)'})
                 st.plotly_chart(fig, use_container_width=True)
 
-                # Diagnóstico IA
-                st.divider()
-                st.header("🧠 Diagnóstico de Consultoría IA")
+                # --- DIAGNÓSTICO ESTRATÉGICO IA ---
+                st.header("🧠 Consultoría Estratégica IA")
                 l, r = st.columns(2)
+                
                 with l:
-                    st.markdown(f'<div class="report-card"><h4>🥇 Líder: {estrella["Producto"]}</h4><p>Aporta {estrella["Rentabilidad_Total"]:,.2f}€. Es tu mayor flujo de caja.</p></div>', unsafe_allow_html=True)
+                    st.markdown(f"""<div class="report-card"><h4>💎 Activo VIP: {top_p['Producto_Final']}</h4>
+                    <p>Este fabricante genera <b>{top_p['Beneficio_Total']:,.2f}€</b>. Es el pilar de tu rentabilidad actual.</p>
+                    </div>""", unsafe_allow_html=True)
+                
                 with r:
-                    st.markdown(f'<div class="report-card" style="border-left-color: #28a745;"><h4>📈 Eficiencia: {eficiente["Producto"]}</h4><p>ROI del {eficiente["ROI_Porcentaje"]:.1f}%. Máxima rentabilidad por euro.</p></div>', unsafe_allow_html=True)
+                    eficiente = res.sort_values('ROI', ascending=False).iloc[0]
+                    st.markdown(f"""<div class="report-card" style="border-left-color: #28a745;"><h4>🚀 Máxima Eficiencia: {eficiente['Producto_Final']}</h4>
+                    <p>Multiplica tu inversión con un ROI del <b>{eficiente['ROI']:.1f}%</b>. Ideal para reinversión.</p>
+                    </div>""", unsafe_allow_html=True)
 
-                # Exportación
-                pdf_bytes = generar_pdf_pro(resumen, total_n, roi_m)
-                st.sidebar.download_button("📄 Descargar PDF", data=bytes(pdf_bytes), file_name="Informe.pdf")
+                # --- EXPORTACIÓN ---
+                st.sidebar.divider()
+                st.sidebar.write("### ⬇️ Exportar Análisis")
+                csv = res.to_csv(index=False).encode('utf-8')
+                st.sidebar.download_button("📊 Descargar Datos CSV", data=csv, file_name="analisis_pro.csv")
                 
             else:
-                st.error(f"No encuentro las columnas configuradas. Veo: {list(df.columns)}")
-        
+                st.error("❌ No detecto columnas de 'Producto' o 'Ventas'.")
+                st.write("Columnas leídas:", list(df.columns))
+
         except Exception as e:
-            st.error(f"Error al procesar: {e}")
+            st.error(f"Error técnico: {e}")
     else:
-        st.info("👋 Sube tu Excel para iniciar el diagnóstico.")
+        st.info("👋 Bienvenido, Socio. Sube el Excel de Ventas-Fabricantes para empezar el análisis.")
