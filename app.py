@@ -113,4 +113,3 @@ else:
             df['Coste_Unidad'] = pd.to_numeric(df['Coste_Unidad'], errors='coerce')
             df['Ventas_Mes_Unidades'] = pd.to_numeric(df['Ventas_Mes_Unidades'], errors='coerce')
             df = df.dropna(subset=cols_necesarias)
-            df = df[df
