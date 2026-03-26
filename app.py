@@ -8,10 +8,11 @@ import datetime
 # 🛠️ CONFIGURACIÓN DE COLUMNAS (Cambia esto según tu Excel)
 # =========================================================
 # Pon aquí el nombre exacto de las columnas de tu archivo Excel:
-COL_PRODUCTO = "REFERENC."    # Ej: "Fabricante", "Modelo", "Referencia"
-COL_PRECIO   = "PRECIO"       # Ej: "Importe", "PVP", "Venta"
-COL_COSTE    = "COSTE"        # Ej: "Coste", "Costo", "Compra"
-COL_VENTAS   = "VENDIDO"      # Ej: "Cantidad", "Unidades", "Vendido"
+COL_PRODUCTO = "Fabricante"    # Ej: "Fabricante", "Modelo", "Referencia"
+COL_MODELO = "Modelo" 
+COL_PRECIO   = "Precio"       # Ej: "Importe", "PVP", "Venta"
+COL_COSTE    = "Coste"        # Ej: "Coste", "Costo", "Compra"
+COL_VENTAS   = "Venta"      # Ej: "Cantidad", "Unidades", "Vendido"
 # =========================================================
 
 st.set_page_config(page_title="OptiMarket Pro | Intelligence", page_icon="🚀", layout="wide")
