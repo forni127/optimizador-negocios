@@ -40,7 +40,8 @@ else:
     if archivo:
         try:
             # 1. Cargar datos (Saltamos filas vacías si las hay, común en Excels reales)
-            df = pd.read_excel(archivo)
+            # Busca la línea que carga el archivo y déjala así:
+df = pd.read_excel(archivo, skiprows=1)
             
             # Limpieza básica: nombres de columnas sin espacios extra
             df.columns = [str(c).strip() for c in df.columns]
