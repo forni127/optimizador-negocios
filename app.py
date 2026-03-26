@@ -41,19 +41,19 @@ else:
         try:
             # 1. Cargar datos (Saltamos filas vacías si las hay, común en Excels reales)
             # Busca la línea que carga el archivo y déjala así:
-df = pd.read_excel(archivo, skiprows=1)
+if archivo:
+        try:
+            # ESTA ES LA LINEA CLAVE: añadimos skiprows=1
+            df = pd.read_excel(archivo, skiprows=1) 
             
-            # Limpieza básica: nombres de columnas sin espacios extra
+            # Limpieza de nombres de columnas
             df.columns = [str(c).strip() for c in df.columns]
 
-            # 2. MAREO DINÁMICO: Mapeamos tus nombres a los que la app usa internamente
+            # Mapeo usando las variables que pusimos arriba
             mapeo = {
                 COL_PRODUCTO: 'Producto_Interno',
-                COL_PRECIO:   'Precio_Interno',
-                COL_COSTE:    'Coste_Interno',
                 COL_VENTAS:   'Ventas_Interno'
             }
-            
             # Si alguna columna de la configuración no existe, avisamos
             faltantes = [c for c in [COL_PRODUCTO, COL_VENTAS] if c not in df.columns]
             
